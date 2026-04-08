@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="root">
+    <div class="error"></div>
+    <div id="header">
+        <h1>Serverless Statusphere</h1>
+        <p>Set your status on the Atmosphere.</p>
+    </div>
+    <div class="container">
+        <div class="card">
+            {% if let Some(Profile {did, display_name}) = profile %}
+            <form action="/logout" method="get" class="session-form">
+                <div>
+                    Hi,
+                    {% if let Some(display_name) = display_name %}
+                    <strong>{{display_name}}</strong>
+                    {% else %}
+                    <strong>friend</strong>
+                    {% endif %}. What's
+                    your status today??
+                </div>
+                <div>
+                    <button type="submit">Log out</button>
+                </div>
+            </form>
+            {% else %}
+            <div class="session-form">
+                <form action="/login" method="post" class="login-form">
+                    <p>@</p>
+                    <input
+                        type="text"
+                        name="handle"
+                        placeholder="Enter your handle (eg alice.bsky.social)"
+                        required
+                    />
+                    <button type="submit">Log in</button>
+                </form>
+            </div>
+            {% endif %}
+
+
+        </div>
+        <form id= "status-form" class="status-options">
+            {% for status in status_options %}
+            <!-- TODO: update the selected element here on form submit -->
+            <button
+                    class="{% if let Some(my_status) = my_status.as_ref() %} {%if &my_status.status == status %} status-option selected {% else %} status-option {% endif %} {% else %} status-option  {%endif%} "
+                    name="status" value="{{status}}">
+                {{status}}
+            </button>
+
+            {% endfor %}
+        </form.status>
+        <div id="statuscontainer">
+        </div>
+    </div>
+</div>
+{%endblock content%}
+
+{%block js%}
+<!-- Client-side JavaScript code for the app. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js" integrity="sha512-bLT0Qm9VnAYZDflyKcBaQ2gg0hSYNQrJ8RilYldYQ1FxQYoCLtUjuuRuZo+fjqhx/qtq/1itJ0C2ejDxltZVFg==" crossorigin="anonymous"></script>
+<script type="text/javascript">
+// Initial statuses data
+const initialStatuses = {{ self.recent_statuses_json()|safe }};
+
+let currentWebSocket = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 10;
+const INITIAL_RECONNECT_DELAY = 1000; // 1 second
+
+// TODO: use to update hightlighted status on event updating
+//       status for current user
+{% if let Some(Profile {did, display_name}) = profile %}
+const did = "{{did.to_string()}}";
+{% else %}
+const did = null;
+{% endif %}
+
+let hostname = window.location.host;
+
+// Function to render a status element
+function renderStatus(data) {
+    let id = data.uri.replaceAll("/", "_").replaceAll(":", "_").replaceAll(".", "_");
+    console.log("normalized id ::   " + id);
+
+    let statusWrapper = null;
+    let preexisting = $("#" + id);
+
+    let updating_existing = false;
+
+    if (preexisting.length == 0) {
+        statusWrapper = $('<div>', {
+            class: "status-line tooltip",
+            id: id
+        });
+    } else {
+        preexisting.empty();
+        statusWrapper = preexisting;
+        updating_existing = true;
+    }
+
+    let status = $('<div>', {
+        class: "status",
+        text: data.status
+    });
+
+    let desc = $('<div>', {
+        class: "desc",
+    });
+    let author = $('<a>', {
+        class: "author",
+        href: "https://bsky.app/profile/" + data.author_did,
+        text: data.handle ? data.handle : data.author_did
+    });
+    desc.append(author);
+    desc.append(document.createTextNode(" is feeling " + data.status));
+    let tooltip = $('<div>', { class: "tooltiptext"});
+    if (data.created_via_this_app) {
+        tooltip.append(document.createTextNode("[created via this app]"));
+    }
+    if (data.seen_on_jetstream) {
+        if (data.created_via_this_app) {
+            tooltip.append($('<br>'));
+        }
+        tooltip.append(document.createTextNode("[observed via jetstream ✅]"));
+    }
+
+    statusWrapper.append(status);
+    statusWrapper.append(desc);
+    statusWrapper.append(tooltip);
+
+    // Update selected status button if this is the current user's status
+    if (did && data.author_did === did) {
+        $('.status-option').removeClass('selected');
+        $('.status-option').each(function() {
+            if ($(this).text() === data.status) {
+                $(this).addClass('selected');
+            }
+        });
+    }
+
+    if (!updating_existing) {
+        $("#statuscontainer").prepend(statusWrapper);
+    }
+}
+
+// Initialize status container with initial data
+$(document).ready(function() {
+    // Render initial statuses in reverse order so newest appears at top
+    initialStatuses.reverse().forEach(function(status) {
+        renderStatus(status);
+    });
+});
+
+$('#status-form').on('submit',function(e){
+    e.preventDefault();
+    let submitter = e.originalEvent.submitter;
+    console.log("event data");
+    console.log(submitter);
+
+    let toSend = { "status": submitter.innerText };
+
+    // Update button selection immediately for better UX
+    $('.status-option').removeClass('selected');
+    $(submitter).addClass('selected');
+
+    $.ajax({
+        type     : "POST",
+        cache    : false,
+        url      : "/status",
+        data     : JSON.stringify(toSend),
+        contentType: "application/json; charset=utf-8",
+        dataType : "json",
+        success  : function(data) {
+            console.log("onsubmit success", data);
+            // Immediately render the status in the UI
+            renderStatus(data);
+        },
+        error: function(xhr, status, error) {
+            console.error("Status update failed:", error);
+            // Revert button selection on error
+            $('.status-option').removeClass('selected');
+            // TODO: Re-select the previous status if known
+        }
+    });
+
+});
+
+function join() {
+  // If we are running via wrangler dev, use ws:
+  const wss = document.location.protocol === "http:" ? "ws://" : "wss://";
+  let ws = new WebSocket(wss + hostname + "/websocket");
+  let rejoined = false;
+  let startTime = Date.now();
+
+  let rejoin = async () => {
+    if (!rejoined) {
+      rejoined = true;
+      currentWebSocket = null;
+
+      // Check if we've exceeded max reconnect attempts
+      if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+        console.log("Max reconnection attempts reached. Stopping reconnection attempts.");
+        return;
+      }
+
+      // Calculate exponential backoff delay
+      const delay = Math.min(INITIAL_RECONNECT_DELAY * Math.pow(2, reconnectAttempts), 30000); // Max 30 seconds
+      reconnectAttempts++;
+      
+      console.log(`Reconnection attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
+      
+      // Wait for the calculated delay
+      await new Promise(resolve => setTimeout(resolve, delay));
+
+      // OK, reconnect now!
+      join();
+    }
+  }
+
+  ws.addEventListener("open", event => {
+    currentWebSocket = ws;
+    console.log("WebSocket connected successfully");
+  });
+
+  ws.addEventListener("message", event => {
+    console.log("websocket msg raw: " + JSON.stringify(event))
+    let data = JSON.parse(event.data);
+    console.log("websocket msg data: " + JSON.stringify(data))
+
+    if (data.error) {
+      console.log("error from backend", data)
+    } else {
+      console.log("status from backend", data)
+      renderStatus(data);
+    }
+  });
+
+  ws.addEventListener("close", event => {
+    console.log("WebSocket closed, reconnecting:", event.code, event.reason);
+    rejoin();
+  });
+  ws.addEventListener("error", event => {
+    console.log("WebSocket error, reconnecting:", event);
+    rejoin();
+  });
+}
+
+
+join();
+</script>
+{%endblock js%}

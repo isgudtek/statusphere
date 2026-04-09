@@ -47,6 +47,8 @@ getrandom = { version = "0.2.15", features = ["js"] }
 # not used directly but we need to enable the wasm-bindgen feature
 time = {version = "0.3.41", features = ["wasm-bindgen"]}
 serde-wasm-bindgen = "0.6.5"
+# pin wasm-bindgen to match worker-build@0.1.14's CLI version (0.2.105)
+wasm-bindgen = "=0.2.105"
 atrium-xrpc = "0.12.2"
 
 [build-dependencies]

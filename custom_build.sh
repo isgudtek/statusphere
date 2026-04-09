@@ -9,4 +9,4 @@ then
     curl https://sh.rustup.rs -sSf | sh -s -- -y
     . "$HOME/.cargo/env"
 fi
-cargo install -q worker-build && worker-build --release
+cargo install -q worker-build --version "=0.1.14" --locked && worker-build --release

@@ -267,11 +267,11 @@ impl StatusDb {
         };
 
         if has_q {
-            query!(&self.0, query_str, min_lat, max_lat, min_lng, max_lng, search_pattern)
-                .all().await?.results()
+            query!(&self.0, query_str, min_lat, max_lat, min_lng, max_lng, search_pattern)?
+                .all().await?.results::<ListingFromDb>()
         } else {
-            query!(&self.0, query_str, min_lat, max_lat, min_lng, max_lng)
-                .all().await?.results()
+            query!(&self.0, query_str, min_lat, max_lat, min_lng, max_lng)?
+                .all().await?.results::<ListingFromDb>()
         }
     }
 }

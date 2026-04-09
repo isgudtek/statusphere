@@ -221,7 +221,7 @@ function renderItem(item) {
                     </div>
                     <div class="listing-card">
                         ${item.imageCid ? `
-                            <div class="listing-image" style="background-image: url('https://bsky.social/xrpc/com.atproto.repo.getBlob?did=${item.authorDid}&cid=${item.imageCid}')"></div>
+                            <div class="listing-image" style="background-image: url('https://cdn.bsky.app/img/feed_fullsize/plain/${item.authorDid}/${item.imageCid}@jpeg')"></div>
                         ` : ''}
                         <div class="listing-badge ${roleClass}">${roleLabel}</div>
                         <h3 class="listing-title">${item.title}</h3>

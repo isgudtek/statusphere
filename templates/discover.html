@@ -64,6 +64,33 @@
         <!-- The Map Container -->
         <div id="map" style="flex: 1; width: 100%; min-height: 400px; background: #111;"></div>
     </main>
+
+    <!-- Right Sidebar -->
+    <aside class="right-sidebar">
+        <div class="search-bar">
+            <span>🌍</span>
+            <input type="text" placeholder="Map search is active..." disabled />
+        </div>
+        
+        <div class="stats-card">
+            <h3>Local Activity</h3>
+            <div class="stat-item">
+                <span class="stat-value" id="map-listings-count">0</span>
+                <span class="stat-label">Items matching filter</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">📍</span>
+                <span class="stat-label">Interactive Map</span>
+            </div>
+        </div>
+
+        <div class="footer-links">
+            <a href="#">Terms</a>
+            <a href="#">Privacy</a>
+            <a href="#">About</a>
+            <span>© 2026 Mercato</span>
+        </div>
+    </aside>
 </div>
 {%endblock content%}
 
@@ -152,6 +179,8 @@ function fetchListings() {
         markers.forEach(m => map.removeLayer(m));
         markers = [];
         
+        let validListingCount = 0;
+        
         data.forEach(item => {
             if (!item.latitude || !item.longitude) return;
             let iLat = parseFloat(item.latitude);
@@ -162,6 +191,8 @@ function fetchListings() {
                 let dist = getDistance(centerPoint.lat, centerPoint.lng, iLat, iLng);
                 if (dist > radius) return; // out of filter range
             }
+            
+            validListingCount++;
             
             // Build popup html
             let avatarId = "popup-avatar-" + Math.random().toString(36).substr(2,9);
@@ -191,6 +222,8 @@ function fetchListings() {
             
             markers.push(marker);
         });
+        
+        $("#map-listings-count").text(validListingCount);
     });
 }
 

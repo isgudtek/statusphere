@@ -24,7 +24,7 @@ id = "2edfd947f54e47df8fe980846fdefba0"
 # log requests using worker logs
 [observability.logs]
 enabled = true
-invocation_logs = false
+invocation_logs = true
 
 [triggers]
 crons = [ "*/1 * * * *" ]

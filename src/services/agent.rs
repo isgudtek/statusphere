@@ -241,4 +241,22 @@ impl Agent {
 
         Ok(profile.data)
     }
+
+    pub async fn upload_blob(
+        &self,
+        bytes: Vec<u8>,
+        mime_type: String,
+    ) -> Result<atrium_api::com::atproto::repo::upload_blob::OutputData, AppError> {
+        let res = self
+            .inner
+            .api
+            .com
+            .atproto
+            .repo
+            .upload_blob(bytes)
+            .await
+            .context("uploading blob to atproto")?;
+
+        Ok(res.data)
+    }
 }

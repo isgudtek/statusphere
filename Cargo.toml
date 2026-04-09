@@ -29,7 +29,7 @@ atrium-common = "0.1.1"
 atrium-api = { version = "0.25.0", default-features = false, features = ["namespace-appbsky"]}
 atrium-identity = "0.1.3"
 atrium-oauth = "0.1.0"
-axum = {version ="0.8.3", features = [ "macros", "form", "query", "json"], default-features = false}
+axum = {version ="0.8.3", features = [ "macros", "form", "query", "json", "multipart"], default-features = false}
 axum-extra = {version = "0.10", features = ["typed-header"]}
 chrono = {version = "0.4.40", default-features = false}
 headers = "0.4.0"

@@ -1,29 +1,24 @@
-use crate::frontend_worker::state::ScheduledEventState;
+use crate::frontend_worker::state::{AppState, ScheduledEventState};
 use crate::services::jetstream::handle_jetstream_event;
 use crate::types::jetstream;
-use crate::types::status::STATUS_OPTIONS;
+use crate::types::status::{Status, STATUS_OPTIONS, StatusWithHandle};
 use crate::{types::errors::AppError, types::templates::HomeTemplate};
-use crate::{
-    types::status::{Status, StatusWithHandle},
-    types::listing::Listing,
-    types::templates::Profile,
-};
-use axum_extra::extract::Host;
+use crate::types::listing::{Listing, ListingFromDb};
+use crate::types::templates::Profile;
 use anyhow::Context as _;
 use atrium_api::types::string::Handle;
 use atrium_oauth::{CallbackParams, OAuthClientMetadata};
+use axum_extra::extract::Host;
+use axum_extra::TypedHeader;
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Multipart, Path, Query, State},
     response::Redirect,
 };
 use axum::{Form, Json};
-use axum_extra::TypedHeader;
 use headers::{Authorization, Upgrade};
 use serde::{Deserialize, Serialize};
 use tower_sessions::Session;
 use worker::{console_log, HttpResponse};
-
-use super::state::AppState;
 
 #[worker::send]
 pub async fn client_metadata(
@@ -248,9 +243,9 @@ pub async fn create_listing(
         did_resolver,
     }): State<AppState>,
     session: Session,
-    Json(form): Json<ListingForm>,
+    mut multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    console_log!("create_listing handler");
+    console_log!("create_listing handler multipart");
     let did = session.get("did").await?.ok_or(AppError::NoSessionAuth)?;
 
     let agent = match oauth.restore_session(&did).await {
@@ -261,6 +256,55 @@ pub async fn create_listing(
         }
     };
 
+    let mut form = ListingForm {
+        title: String::new(),
+        description: None,
+        role: "maker".to_string(),
+        price: None,
+        barter_for: None,
+        latitude: None,
+        longitude: None,
+        location_name: None,
+    };
+    
+    let mut image_bytes = Vec::new();
+
+    while let Some(field) = multipart.next_field().await.map_err(|e: axum::extract::multipart::MultipartError| anyhow::anyhow!(e))? {
+        let name = field.name().unwrap_or("").to_string();
+        match name.as_str() {
+            "title" => form.title = field.text().await.map_err(|e| anyhow::anyhow!(e))?,
+            "description" => form.description = Some(field.text().await.map_err(|e| anyhow::anyhow!(e))?),
+            "role" => form.role = field.text().await.map_err(|e| anyhow::anyhow!(e))?,
+            "price" => form.price = Some(field.text().await.map_err(|e| anyhow::anyhow!(e))?),
+            "barter_for" => form.barter_for = Some(field.text().await.map_err(|e| anyhow::anyhow!(e))?),
+            "latitude" => form.latitude = Some(field.text().await.map_err(|e| anyhow::anyhow!(e))?),
+            "longitude" => form.longitude = Some(field.text().await.map_err(|e| anyhow::anyhow!(e))?),
+            "location_name" => form.location_name = Some(field.text().await.map_err(|e| anyhow::anyhow!(e))?),
+            "photo" => {
+                image_bytes = field.bytes().await.map_err(|e| anyhow::anyhow!(e))?.to_vec();
+            }
+            _ => {}
+        }
+    }
+
+    let mut images = None;
+    if !image_bytes.is_empty() {
+        let blob_res = agent.upload_blob(image_bytes, "image/jpeg".to_string()).await?;
+        images = Some(vec![blob_res.blob]);
+    }
+
+    let mut images_for_record = None;
+    if let Some(ref imgs) = images {
+        let refs: Vec<atrium_api::types::BlobRef> = imgs.iter().filter_map(|b| {
+            // Safe extraction via JSON to bypass opaque types
+            let val = serde_json::to_value(b).unwrap_or_default();
+            serde_json::from_value(val).ok()
+        }).collect();
+        if !refs.is_empty() {
+            images_for_record = Some(refs);
+        }
+    }
+
     let base_url = format!("https://{}", host);
     
     let record_data = crate::types::lexicons::xyz::mercato::listing::RecordData {
@@ -270,7 +314,7 @@ pub async fn create_listing(
         price: form.price.clone(),
         barter_for: form.barter_for.clone(),
         geo: match (&form.latitude, &form.longitude) {
-            (Some(lat), Some(lng)) => Some(crate::types::lexicons::xyz::mercato::listing::Geo {
+            (Some(lat), Some(lng)) if !lat.is_empty() && !lng.is_empty() => Some(crate::types::lexicons::xyz::mercato::listing::Geo {
                 latitude: lat.clone(),
                 longitude: lng.clone(),
                 name: form.location_name.clone(),
@@ -278,9 +322,16 @@ pub async fn create_listing(
             }),
             _ => None,
         },
-        images: None, // TODO support images
+        images: images_for_record,
         created_at: atrium_api::types::string::Datetime::now(),
     };
+
+    let image_cid = record_data.images.as_ref().and_then(|imgs| imgs.first().map(|i| {
+        let val = serde_json::to_value(i).unwrap_or_default();
+        val.get("ref").and_then(|r| r.get("$link")).and_then(|l| l.as_str()).map(|s| s.to_string())
+            .or_else(|| val.get("cid").and_then(|c| c.as_str()).map(|s| s.to_string()))
+            .unwrap_or_default()
+    }));
 
     let uri = agent.create_listing(record_data, &base_url).await?.uri;
 
@@ -296,20 +347,20 @@ pub async fn create_listing(
         longitude: form.longitude,
         altitude: None,
         location_name: form.location_name,
+        image_cid,
         created_at: chrono::Utc::now(),
         indexed_at: chrono::Utc::now(),
     };
 
     let listing_from_db = status_db.save_listing_optimistic(&listing).await?;
 
-    // Broadcast to WebSocket clients
+    // Broadcast
     let mut broadcast_val = serde_json::to_value(&listing_from_db).unwrap();
     if let Some(obj) = broadcast_val.as_object_mut() {
         obj.insert("$type".to_string(), serde_json::Value::String("listing".to_string()));
     }
     durable_object.broadcast(broadcast_val).await?;
 
-    // Resolve handle for return
     let mut return_val = serde_json::to_value(&listing_from_db).unwrap();
     if let Some(obj) = return_val.as_object_mut() {
         let handle = did_resolver.resolve_handle_for_did(&listing_from_db.author_did).await;

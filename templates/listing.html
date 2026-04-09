@@ -92,25 +92,28 @@ function renderListingDetail(l) {
     let roleText = l.role === 'maker' ? 'OFFERING' : 'LOOKING FOR';
     
     let html = `
-        <div class="listing-badge ${badgeClass}" style="margin-bottom: 12px;">${roleText}</div>
-        <h1 style="font-size: 1.8rem; margin-bottom: 8px;">${l.title}</h1>
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
-            <div class="status-avatar" style="width: 32px; height: 32px; font-size: 1rem;">👤</div>
-            <a href="https://bsky.app/profile/${l.authorDid}" class="author">${l.handle || l.authorDid}</a>
+        ${l.imageCid ? `
+            <div class="listing-detail-image" style="background-image: url('https://bsky.social/xrpc/com.atproto.repo.getBlob?did=${l.authorDid}&cid=${l.imageCid}')"></div>
+        ` : ''}
+        <div class="listing-badge ${badgeClass}" style="margin-bottom: 12px; margin-top: 20px;">${roleText}</div>
+        <h1 style="font-size: 2.2rem; margin-bottom: 8px; font-weight: 900;">${l.title}</h1>
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 24px;">
+            <div class="user-avatar-small" style="width: 32px; height: 32px;"></div>
+            <a href="https://bsky.app/profile/${l.authorDid}" class="author" style="font-size: 1.1rem; color: var(--accent-color);">${l.handle || l.authorDid}</a>
         </div>
-        <div style="font-size: 1.1rem; line-height: 1.6; margin-bottom: 24px;">${l.description || "No description provided."}</div>
+        <div style="font-size: 1.2rem; line-height: 1.6; margin-bottom: 32px; color: var(--text-primary); white-space: pre-wrap;">${l.description || "No description provided."}</div>
         
         ${(l.price || l.barterFor) ? `
-            <div class="trade-details" style="font-size: 1.1rem; padding: 16px;">
-                ${l.price ? `<div style="margin-bottom: 8px;">💰 <strong>Price:</strong> ${l.price}</div>` : ""}
+            <div class="listing-trade" style="font-size: 1.2rem; padding: 24px; background: rgba(255,180,0,0.05); border: 1px solid rgba(255,180,0,0.1); border-radius: 12px;">
+                ${l.price ? `<div style="margin-bottom: 12px;">💰 <strong>Price:</strong> ${l.price}</div>` : ""}
                 ${l.barterFor ? `<div>🤝 <strong>Trade for:</strong> ${l.barterFor}</div>` : ""}
             </div>
         ` : ""}
 
         ${l.latitude ? `
-            <div style="margin-top: 20px; color: var(--accent-color);">
-                📍 Located in: <strong>${l.locationName || "Local Area"}</strong><br/>
-                <span style="font-size: 0.8rem; opacity: 0.7;">Coordinates: ${l.latitude}, ${l.longitude}</span>
+            <div style="margin-top: 32px; padding: 16px; border-top: 1px solid var(--border-color); color: var(--accent-color);">
+                <div style="font-size: 1.1rem; margin-bottom: 4px;">📍 Located in: <strong>${l.locationName || "Local Area"}</strong></div>
+                <div style="font-size: 0.85rem; opacity: 0.6;">WGS84: ${l.latitude}, ${l.longitude}</div>
             </div>
         ` : ""}
     `;

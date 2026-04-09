@@ -18,6 +18,8 @@ pub struct Listing {
     pub altitude: Option<String>,
     #[serde(rename = "locationName")]
     pub location_name: Option<String>,
+    #[serde(rename = "imageCid")]
+    pub image_cid: Option<String>,
     #[serde(rename = "createdAt")]
     pub created_at: DateTime<Utc>,
     #[serde(rename = "indexedAt")]
@@ -40,6 +42,8 @@ pub struct ListingFromDb {
     pub altitude: Option<String>,
     #[serde(rename = "locationName")]
     pub location_name: Option<String>,
+    #[serde(rename = "imageCid")]
+    pub image_cid: Option<String>,
     #[serde(rename = "createdAt")]
     pub created_at: DateTime<Utc>,
     #[serde(rename = "indexedAt")]

@@ -5,150 +5,171 @@
     <!-- Sidebar -->
     <nav class="sidebar">
         <a href="/" class="logo">
-            <span>🛒</span>
-            <span>MERCATO</span>
+            <span class="logo-icon">🛒</span>
+            <span class="logo-text">MERCATO</span>
         </a>
         
         <div class="nav-links">
             <a href="/" class="nav-item active">
-                <span>🏠</span>
-                <span>Home</span>
+                <span class="nav-icon">🏠</span>
+                <span class="nav-label">Home</span>
             </a>
             <a href="#" class="nav-item">
-                <span>🔍</span>
-                <span>Search</span>
+                <span class="nav-icon">🔍</span>
+                <span class="nav-label">Discover</span>
             </a>
             <a href="#" class="nav-item">
-                <span>🔔</span>
-                <span>Notifications</span>
+                <span class="nav-icon">👤</span>
+                <span class="nav-label">Profile</span>
             </a>
             <a href="#" class="nav-item">
-                <span>👤</span>
-                <span>Profile</span>
-            </a>
-            <a href="#" class="nav-item">
-                <span>⚙️</span>
-                <span>Settings</span>
+                <span class="nav-icon">⚙️</span>
+                <span class="nav-label">Settings</span>
             </a>
         </div>
 
         {% if profile.is_some() %}
-        <button class="btn-post" onclick="openModal()">
-            <span>➕</span>
-            <span>Post Listing</span>
+        <button class="btn-post-primary" onclick="openModal()">
+            <span>Post Item</span>
         </button>
         {% endif %}
 
         <div class="user-mini">
             {% if let Some(Profile {did, display_name}) = profile %}
-            <div class="user-avatar"></div>
+            <div class="user-avatar-small"></div>
             <div class="user-info">
                 <span class="user-name">{{ display_name.as_deref().unwrap_or("Friend") }}</span>
                 <span class="user-handle">{{ did }}</span>
             </div>
             {% else %}
-            <a href="/login-page" style="text-decoration: none; color: white;">Log In</a>
+            <a href="/login-page" style="text-decoration: none; color: var(--accent-color); font-weight: 700;">Log In</a>
             {% endif %}
         </div>
     </nav>
 
     <!-- Main Content -->
     <main class="main-content">
-        <header>
-            <h2>Home</h2>
+        <header class="main-header">
+            <h2>Marketplace</h2>
         </header>
 
         {% if profile.is_some() %}
-        <div class="compose-area">
-            <form id="status-form" class="compose-form">
-                <div class="status-avatar">😊</div>
-                <div class="compose-main">
-                    <p style="color: var(--text-secondary); margin-bottom: 8px;">How are you feeling today?</p>
-                    <div class="status-grid">
-                        {% for status in status_options %}
-                        <button type="button" class="status-btn status-option {% if let Some(my_status) = my_status.as_ref() %} {%if &my_status.status == status %} selected {% endif %} {% endif %}" value="{{status}}">
-                            {{status}}
-                        </button>
-                        {% endfor %}
-                    </div>
-                </div>
-            </form>
+        <div class="quick-post-prompt" onclick="openModal()">
+            <div class="user-avatar-small"></div>
+            <div class="prompt-text">What are you offering today?</div>
+            <div class="prompt-icons">
+                <span>📷</span>
+                <span>📍</span>
+            </div>
         </div>
         {% else %}
-        <div class="sidebar-card" style="margin: 16px;">
-            <h3>Join the Marketplace</h3>
-            <p style="color: var(--text-secondary); margin-bottom: 12px;">Log in with your AT Protocol handle to post trade listings and status updates.</p>
-            <form action="/login" method="post" class="login-form">
-                <input type="text" name="handle" placeholder="eg. alice.bsky.social" required />
-                <button type="submit" class="btn-submit">Log in</button>
+        <div class="welcome-card">
+            <h1>Welcome to Mercato</h1>
+            <p>The local, decentralized marketplace for neighbors.</p>
+            <form action="/login" method="post" class="login-compact">
+                <input type="text" name="handle" placeholder="your.bsky.social" required />
+                <button type="submit">Join</button>
             </form>
         </div>
         {% endif %}
 
-        <div id="statuscontainer">
-            <!-- Feed items injected here -->
+        <div id="feed-container">
+            <!-- Interleaved listings and community updates -->
         </div>
     </main>
 
     <!-- Right Sidebar -->
     <aside class="right-sidebar">
-        <div class="search-box">
+        <div class="search-bar">
             <span>🔍</span>
-            Search Mercato
+            <input type="text" placeholder="Search items..." />
         </div>
-        <div class="sidebar-card">
-            <h3>Mercato Proximity</h3>
-            <p style="color: var(--text-secondary); font-size: 0.9rem;">Find items and trades near you. Proximity features are currently in beta.</p>
+        
+        <div class="stats-card">
+            <h3>Local Activity</h3>
+            <div class="stat-item">
+                <span class="stat-value">24</span>
+                <span class="stat-label">Items near you</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">{{ recent_listings.len() }}</span>
+                <span class="stat-label">Total Listings</span>
+            </div>
         </div>
-        <div class="sidebar-card">
-            <h3>Local Community</h3>
-            <p style="color: var(--text-secondary); font-size: 0.9rem;">Join 142 neighbors trading items and services today.</p>
+
+        <div class="footer-links">
+            <a href="#">Terms</a>
+            <a href="#">Privacy</a>
+            <a href="#">About</a>
+            <span>© 2026 Mercato</span>
         </div>
     </aside>
 
-    <!-- Modal for Listing -->
+    <!-- Listing Modal -->
     <div id="listing-modal" class="modal-overlay" onclick="closeModal(event)">
-        <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-card" onclick="event.stopPropagation()">
             <div class="modal-header">
-                <h3>New Listing</h3>
-                <button class="btn-close" onclick="closeModal()">×</button>
+                <button class="btn-close-modal" onclick="closeModal()">✕</button>
+                <button class="btn-submit-top" form="listing-form">Post</button>
             </div>
-            <div class="compose-area">
-                <form id="listing-form">
-                    <div style="margin-bottom: 15px;">
-                        <input type="text" name="title" class="compose-input" placeholder="What are you trading?" required style="font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;" />
+            
+            <form id="listing-form" class="modal-form">
+                <div class="form-main">
+                    <div class="user-avatar-small"></div>
+                    <div class="input-area">
+                        <input type="text" name="title" class="title-input" placeholder="What are you trading?" required />
+                        <textarea name="description" class="desc-input" placeholder="Add color to your offer..."></textarea>
                     </div>
-                    <textarea name="description" class="compose-input" placeholder="Describe your item or service..." style="font-size: 1rem; min-height: 100px;"></textarea>
-                    
-                    <div style="display: flex; gap: 20px; align-items: center; margin: 15px 0;">
-                        <label style="cursor: pointer;"><input type="radio" name="role" value="maker" checked /> Maker (Offer)</label>
-                        <label style="cursor: pointer;"><input type="radio" name="role" value="taker" /> Taker (Request)</label>
+                </div>
+
+                <div class="photo-uploader">
+                    <input type="file" id="photo-input" multiple accept="image/*" style="display: none;" />
+                    <label for="photo-input" class="photo-btn">
+                        <span>📷</span>
+                        <span>Add Photos</span>
+                    </label>
+                    <div id="photo-preview" class="preview-grid"></div>
+                </div>
+
+                <div class="form-details">
+                    <div class="role-selector">
+                        <label class="radio-chip">
+                            <input type="radio" name="role" value="maker" checked />
+                            <span>Offer</span>
+                        </label>
+                        <label class="radio-chip">
+                            <input type="radio" name="role" value="taker" />
+                            <span>Request</span>
+                        </label>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
-                        <input type="text" name="price" placeholder="Price (e.g. 10€)" style="background: rgba(255,255,255,0.05); border: none; padding: 10px; color: white; border-radius: 8px;" />
-                        <input type="text" name="barter_for" placeholder="Barter for (e.g. eggs)" style="background: rgba(255,255,255,0.05); border: none; padding: 10px; color: white; border-radius: 8px;" />
-                    </div>
-
-                    <div style="margin-bottom: 15px;">
-                        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">Location</p>
-                        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px;">
-                            <input type="text" name="location_name" placeholder="City / Neighborhood" style="background: rgba(255,255,255,0.05); border: none; padding: 10px; color: white; border-radius: 8px;" />
-                            <input type="text" name="lat" placeholder="Lat" style="background: rgba(255,255,255,0.05); border: none; padding: 10px; color: white; border-radius: 8px;" />
-                            <input type="text" name="lng" placeholder="Lng" style="background: rgba(255,255,255,0.05); border: none; padding: 10px; color: white; border-radius: 8px;" />
+                    <div class="detail-row">
+                        <div class="input-group">
+                            <label>Price (Optional)</label>
+                            <input type="text" name="price" placeholder="e.g. 10€ or Free" />
+                        </div>
+                        <div class="input-group">
+                            <label>Barter For</label>
+                            <input type="text" name="barter_for" placeholder="e.g. Fresh bread" />
                         </div>
                     </div>
 
-                    <div class="compose-footer">
-                        <div class="compose-tools">
-                            <span>📷</span>
-                            <span>📍</span>
-                            <span>🏷️</span>
+                    <div class="location-group">
+                        <label>Location</label>
+                        <div class="location-row">
+                            <input type="text" name="location_name" id="loc-name" placeholder="Neighborhood" />
+                            <button type="button" class="btn-geo" onclick="getMyLocation()">
+                                <span>📍</span> Use My Location
+                            </button>
                         </div>
-                        <button type="submit" class="btn-submit">Post Listing</button>
+                        <div class="geo-inputs">
+                            <input type="hidden" name="latitude" id="loc-lat" />
+                            <input type="hidden" name="longitude" id="loc-lng" />
+                            <div id="geo-status" class="geo-label"></div>
+                        </div>
                     </div>
-                </form>
-            </div>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -163,160 +184,154 @@ const initialListings = {{ self.recent_listings_json()|safe }};
 let timeline = [...initialStatuses.map(s => ({...s, type: 'status'})), ...initialListings.map(l => ({...l, type: 'listing'}))];
 timeline.sort((a, b) => new Date(b.created_at || b.createdAt) - new Date(a.created_at || a.createdAt));
 
-{% if let Some(Profile {did, display_name}) = profile %}
-const did = "{{did.to_string()}}";
-{% else %}
-const did = null;
-{% endif %}
-
-function openModal() {
-    $('#listing-modal').css('display', 'flex');
-}
-
-function closeModal(e) {
-    $('#listing-modal').css('display', 'none');
-}
-
-function renderStatus(data) {
-    let id = "status_" + data.uri.replaceAll("/", "_").replaceAll(":", "_").replaceAll(".", "_");
+function renderItem(item) {
+    let id = (item.type || 'listing') + "_" + item.uri.replaceAll("/", "_").replaceAll(":", "_").replaceAll(".", "_");
     if ($("#" + id).length > 0) return;
 
-    let dateStr = data.created_at ? new Date(data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Now";
+    let date = new Date(item.created_at || item.createdAt);
+    let timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
-    let html = `
-        <div class="status-line" id="${id}">
-            <div class="status-avatar">${data.status}</div>
-            <div class="status-content">
-                <div class="status-header">
-                    <a href="https://bsky.app/profile/${data.author_did}" class="author">${data.handle || data.author_did.slice(0, 10) + '...'}</a>
-                    <span class="handle-time">· ${dateStr}</span>
-                </div>
-                <div class="status-text">${data.handle || "Somebody"} is feeling <strong>${data.status}</strong> right now.</div>
-            </div>
-        </div>
-    `;
-    $("#statuscontainer").prepend(html);
-}
-
-function renderListing(data) {
-    let id = "listing_" + data.uri.replaceAll("/", "_").replaceAll(":", "_").replaceAll(".", "_");
-    if ($("#" + id).length > 0) return;
-
-    let dateStr = data.createdAt ? new Date(data.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Now";
-    let badgeClass = data.role === 'maker' ? 'badge-maker' : 'badge-taker';
-    let roleText = data.role === 'maker' ? 'OFFERING' : 'LOOKING FOR';
-    
-    let html = `
-        <div class="status-line" id="${id}">
-            <div class="status-avatar">${data.role === 'maker' ? '📦' : '🔍'}</div>
-            <div class="status-content">
-                <div class="status-header">
-                    <a href="https://bsky.app/profile/${data.authorDid}" class="author">${data.handle || data.authorDid.slice(0, 10) + '...'}</a>
-                    <span class="handle-time">· ${dateStr}</span>
-                </div>
-                <div class="status-text">
-                    <div class="listing-badge ${badgeClass}">${roleText}</div>
-                    <div style="font-weight: 700; margin-top: 4px; font-size: 1.1rem;">${data.title}</div>
-                    <div style="margin-top: 4px; color: var(--text-secondary);">${data.description || ""}</div>
-                    ${(data.price || data.barterFor) ? `
-                        <div class="trade-details">
-                            ${data.price ? `<div>💰 <strong>Price:</strong> ${data.price}</div>` : ""}
-                            ${data.barterFor ? `<div>🤝 <strong>Trade:</strong> ${data.barterFor}</div>` : ""}
-                        </div>
-                    ` : ""}
-                    ${data.geo ? `
-                        <div style="margin-top: 8px; font-size: 0.8rem; color: var(--accent-color);">
-                            📍 ${data.geo.name || "Local Area"}
-                        </div>
-                    ` : ""}
+    let html = "";
+    if (item.type === 'status') {
+        html = `
+            <div class="feed-item status-feed" id="${id}">
+                <div class="item-avatar">${item.status}</div>
+                <div class="item-body">
+                    <div class="item-header">
+                        <span class="item-author">${item.handle || 'Anonymous'}</span>
+                        <span class="item-time">· ${timeStr}</span>
+                    </div>
+                    <div class="item-text">is feeling <strong>${item.status}</strong></div>
                 </div>
             </div>
-        </div>
-    `;
-    $("#statuscontainer").prepend(html);
+        `;
+    } else {
+        let roleLabel = item.role === 'maker' ? 'OFFERING' : 'LOOKING FOR';
+        let roleClass = item.role === 'maker' ? 'type-offer' : 'type-request';
+        
+        html = `
+            <div class="feed-item listing-feed" id="${id}" onclick="window.location='/listing/${item.authorDid}/${item.uri.split('/').pop()}'">
+                <div class="item-avatar-subtle">👤</div>
+                <div class="item-body">
+                    <div class="item-header">
+                        <span class="item-author">${item.handle || item.authorDid.slice(0, 10)}</span>
+                        <span class="item-time">· ${timeStr}</span>
+                    </div>
+                    <div class="listing-card">
+                        ${item.imageCid ? `
+                            <div class="listing-image" style="background-image: url('https://bsky.social/xrpc/com.atproto.repo.getBlob?did=${item.authorDid}&cid=${item.imageCid}')"></div>
+                        ` : ''}
+                        <div class="listing-badge ${roleClass}">${roleLabel}</div>
+                        <h3 class="listing-title">${item.title}</h3>
+                        ${item.description ? `<p class="listing-desc">${item.description}</p>` : ''}
+                        
+                        ${(item.price || item.barterFor) ? `
+                            <div class="listing-trade">
+                                ${item.price ? `<span>💰 ${item.price}</span>` : ''}
+                                ${item.barterFor ? `<span>🤝 ${item.barterFor}</span>` : ''}
+                            </div>
+                        ` : ''}
+
+                        ${item.locationName ? `<div class="listing-loc">📍 ${item.locationName}</div>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    $("#feed-container").prepend(html);
 }
 
 $(document).ready(function() {
-    timeline.reverse().forEach(function(item) {
-        if (item.type === 'status' || (!item.type && item.status)) {
-            renderStatus(item);
-        } else {
-            renderListing(item);
-        }
-    });
+    timeline.reverse().forEach(renderItem);
 });
 
-// Status selection
-$('.status-btn').on('click', function() {
-    let status = $(this).val();
-    $('.status-btn').removeClass('selected');
-    $(this).addClass('selected');
-    
-    $.ajax({
-        type: "POST",
-        url: "/status",
-        data: JSON.stringify({ status: status }),
-        contentType: "application/json",
-        dataType: "json",
-        success: function(data) {
-            renderStatus(data);
-        }
-    });
+function openModal() {
+    $('#listing-modal').css('display', 'flex').hide().fadeIn(200);
+}
+
+function closeModal(e) {
+    $('#listing-modal').fadeOut(200);
+}
+
+function getMyLocation() {
+    $("#geo-status").text("Locating...");
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                $("#loc-lat").val(pos.coords.latitude);
+                $("#loc-lng").val(pos.coords.longitude);
+                $("#geo-status").text(`📍 Coordinates locked: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
+            },
+            (err) => {
+                $("#geo-status").text("⚠️ Location access denied.");
+            }
+        );
+    }
+}
+
+// Photo Preview
+$('#photo-input').on('change', function() {
+    const files = this.files;
+    $('#photo-preview').empty();
+    for(let f of files) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            $('#photo-preview').append(`<div class="preview-img" style="background-image: url(${e.target.result})"></div>`);
+        };
+        reader.readAsDataURL(f);
+    }
 });
 
-// Listing submission
+// Post Listing
 $('#listing-form').on('submit', function(e) {
     e.preventDefault();
-    let rawData = {};
-    $(this).serializeArray().forEach(item => {
-        if (item.value) rawData[item.name] = item.value;
-    });
+    const btn = $(".btn-submit-top");
+    btn.prop('disabled', true).text('Posting...');
 
-    let formData = {
-        title: rawData.title,
-        description: rawData.description,
-        role: rawData.role,
-        price: rawData.price,
-        barter_for: rawData.barter_for,
-        latitude: rawData.lat,
-        longitude: rawData.lng,
-        location_name: rawData.location_name
-    };
+    let formData = new FormData(this);
+    // Add file if any
+    const fileInput = document.getElementById('photo-input');
+    if (fileInput.files[0]) {
+        formData.append('photo', fileInput.files[0]);
+    }
 
     $.ajax({
         type: "POST",
         url: "/listing",
-        data: JSON.stringify(formData),
-        contentType: "application/json",
-        dataType: "json",
+        data: formData,
+        processData: false,
+        contentType: false,
         success: function(data) {
-            renderListing(data);
+            renderItem({...data, type: 'listing'});
             closeModal();
             $('#listing-form')[0].reset();
+            $('#photo-preview').empty();
+            btn.prop('disabled', false).text('Post');
+        },
+        error: function() {
+            btn.prop('disabled', false).text('Post');
+            alert("Error posting listing.");
         }
     });
 });
 
-// WebSocket logic
+function Object.from_base_with_files(form) {
+    let obj = {};
+    $(form).serializeArray().forEach(i => obj[i.name] = i.value);
+    return obj;
+}
+
+// WebSocket
 function join() {
     const wss = document.location.protocol === "http:" ? "ws://" : "wss://";
     let ws = new WebSocket(wss + window.location.host + "/websocket");
-    
-    ws.addEventListener("message", event => {
-        let data = JSON.parse(event.data);
-        if (!data.error) {
-            if (data.$type === 'listing') {
-                renderListing(data);
-            } else {
-                renderStatus(data);
-            }
-        }
-    });
-
-    ws.addEventListener("close", () => {
-        setTimeout(join, 2000);
-    });
+    ws.onmessage = e => {
+        let d = JSON.parse(e.data);
+        if (!d.error) renderItem(d);
+    };
+    ws.onclose = () => setTimeout(join, 2000);
 }
 join();
+
 </script>
 {%endblock js%}

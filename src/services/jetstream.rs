@@ -166,12 +166,11 @@ pub async fn handle_jetstream_event(
                             };
                             let updated = state.status_db.save_or_update_from_jetstream(&status).await?;
                             let _ = state.durable_object.broadcast(serde_json::to_value(updated)?).await;
-                        } else if commit.collection == ListingCollection::NSID {
+                        } else if commit.collection == "xyz.mercato.listing" {
                             let record: mercato_listing::RecordData = serde_json::from_value(record_val.clone())?;
-                            let created = record.created_at.as_ref();
                             let listing = Listing {
                                 uri: record_uri.clone(),
-                                author_did,
+                                author_did: author_did.clone(),
                                 title: record.title.clone(),
                                 description: record.description.clone(),
                                 role: record.role.clone(),
@@ -181,7 +180,13 @@ pub async fn handle_jetstream_event(
                                 longitude: record.geo.as_ref().map(|g| g.longitude.clone()),
                                 altitude: record.geo.as_ref().and_then(|g| g.altitude.clone()),
                                 location_name: record.geo.as_ref().and_then(|g| g.name.clone()),
-                                created_at: created.to_utc(),
+                                image_cid: record.images.as_ref().and_then(|imgs| imgs.first().map(|i| {
+                                    let val = serde_json::to_value(i).unwrap_or_default();
+                                    val.get("ref").and_then(|r| r.get("$link")).and_then(|l| l.as_str()).map(|s| s.to_string())
+                                        .or_else(|| val.get("cid").and_then(|c| c.as_str()).map(|s| s.to_string()))
+                                        .unwrap_or_default()
+                                })),
+                                created_at: record.created_at.as_ref().to_utc(),
                                 indexed_at: right_now,
                             };
                             let updated = state.status_db.save_listing_from_jetstream(&listing).await?;

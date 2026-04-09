@@ -122,8 +122,8 @@ impl StatusDb {
     }
 
     pub async fn save_listing_optimistic(&self, listing: &Listing) -> Result<ListingFromDb> {
-        let res = query!(&self.0, r#"INSERT INTO listings (uri, authorDid, title, description, role, price, barterFor, latitude, longitude, altitude, locationName, createdAt, indexedAt, seenOnJetstream, createdViaThisApp) 
-                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, FALSE, TRUE)
+        let res = query!(&self.0, r#"INSERT INTO listings (uri, authorDid, title, description, role, price, barterFor, latitude, longitude, altitude, locationName, imageCid, createdAt, indexedAt, seenOnJetstream, createdViaThisApp) 
+                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, FALSE, TRUE)
                       ON CONFLICT (uri)
                       DO UPDATE
                       SET
@@ -141,6 +141,7 @@ impl StatusDb {
                     &listing.longitude,
                     &listing.altitude,
                     &listing.location_name,
+                    &listing.image_cid,
                     &listing.created_at,
                     &listing.indexed_at,
         )?.first(None).await?;
@@ -150,21 +151,22 @@ impl StatusDb {
     }
 
     pub async fn save_listing_from_jetstream(&self, listing: &Listing) -> Result<ListingFromDb> {
-        let res = query!(&self.0, r#"INSERT INTO listings (uri, authorDid, title, description, role, price, barterFor, latitude, longitude, altitude, locationName, createdAt, indexedAt, seenOnJetstream, createdViaThisApp) 
-                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, TRUE, FALSE)
+        let res = query!(&self.0, r#"INSERT INTO listings (uri, authorDid, title, description, role, price, barterFor, latitude, longitude, altitude, locationName, imageCid, createdAt, indexedAt, seenOnJetstream, createdViaThisApp) 
+                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, TRUE, FALSE)
                       ON CONFLICT (uri)
                       DO UPDATE
                       SET
-                        title = ?14,
-                        description = ?15,
-                        role = ?16,
-                        price = ?17,
-                        barterFor = ?18,
-                        latitude = ?19,
-                        longitude = ?20,
-                        altitude = ?21,
-                        locationName = ?22,
-                        indexedAt = ?23,
+                        title = ?15,
+                        description = ?16,
+                        role = ?17,
+                        price = ?18,
+                        barterFor = ?19,
+                        latitude = ?20,
+                        longitude = ?21,
+                        altitude = ?22,
+                        locationName = ?23,
+                        imageCid = ?24,
+                        indexedAt = ?25,
                         seenOnJetstream = TRUE 
                       RETURNING *
                       "#,  
@@ -179,6 +181,7 @@ impl StatusDb {
                     &listing.longitude,
                     &listing.altitude,
                     &listing.location_name,
+                    &listing.image_cid,
                     &listing.created_at,
                     &listing.indexed_at,
                     // update
@@ -191,6 +194,7 @@ impl StatusDb {
                     &listing.longitude,
                     &listing.altitude,
                     &listing.location_name,
+                    &listing.image_cid,
                     &listing.indexed_at,
         )?.first(None).await?;
         let res = res.ok_or(worker::Error::Infallible)?;

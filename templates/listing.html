@@ -40,10 +40,10 @@
 
     <!-- Main Content -->
     <main class="main-content">
-        <header>
-            <a href="/" style="text-decoration: none; color: white; margin-right: 20px;">←</a>
+        <div class="main-header">
+            <a href="/" style="text-decoration: none; color: white; margin-right: 20px; font-size: 1.2rem; font-weight: bold;">←</a>
             <h2>Listing</h2>
-        </header>
+        </div>
 
         <div id="listing-detail" style="padding: 20px; border-bottom: 1px solid var(--border-color);">
             <!-- listing injection via JS to keep logic consistent -->
@@ -53,13 +53,12 @@
             <h3>Comments</h3>
             
             {% if profile.is_some() %}
-            <div class="compose-area" style="margin-top: 20px; border: 1px solid var(--border-color); border-radius: 12px;">
-                <form id="comment-form" class="compose-form">
-                    <div class="compose-main">
-                        <textarea name="content" class="compose-input" placeholder="Join the discussion..." style="font-size: 1rem; min-height: 80px;"></textarea>
-                        <div class="compose-footer">
-                            <div></div>
-                            <button type="submit" class="btn-submit">Reply</button>
+            <div class="compose-area" style="margin-top: 20px; padding: 16px; border: 1px solid var(--border-color); border-radius: 12px; background: rgba(255,255,255,0.02);">
+                <form id="comment-form" style="display: flex; gap: 12px; align-items: flex-start;">
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 12px;">
+                        <textarea name="content" placeholder="Post your reply..." style="width: 100%; background: transparent; border: none; color: white; font-size: 1.1rem; resize: none; min-height: 48px; outline: none;"></textarea>
+                        <div style="display: flex; justify-content: flex-end; padding-top: 8px; border-top: 1px solid var(--border-color);">
+                            <button type="submit" class="btn-submit-top" style="padding: 10px 24px;">Reply</button>
                         </div>
                     </div>
                 </form>
@@ -133,14 +132,14 @@ function renderComment(c) {
     let dateStr = new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     let avatarId = "avatar-comment-" + Math.random().toString(36).substr(2,9);
     let html = `
-        <div class="status-line" style="padding-left: 0;">
-            <div class="status-avatar" id="${avatarId}" style="width: 32px; height: 32px; font-size: 1rem; border-radius: 50%;">💬</div>
-            <div class="status-content">
-                <div class="status-header">
-                    <a href="https://bsky.app/profile/${c.authorDid}" class="author">${c.handle || c.authorDid.slice(0,10)+'...'}</a>
-                    <span class="handle-time">· ${dateStr}</span>
+        <div class="feed-item">
+            <div class="item-avatar-subtle" id="${avatarId}" style="background: center/cover;"></div>
+            <div class="item-body">
+                <div class="item-header">
+                    <a href="https://bsky.app/profile/${c.authorDid}" class="item-author" style="color: var(--accent-color); text-decoration: none;">${c.handle || c.authorDid.slice(0,10)+'...'}</a>
+                    <span class="item-time">· ${dateStr}</span>
                 </div>
-                <div class="status-text">${c.content}</div>
+                <div style="font-size: 1rem; color: var(--text-primary); margin-top: 4px; line-height: 1.4;">${c.content}</div>
             </div>
         </div>
     `;

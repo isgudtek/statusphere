@@ -315,11 +315,11 @@ $('#listing-form').on('submit', function(e) {
     });
 });
 
-function Object.from_base_with_files(form) {
+Object.from_base_with_files = function(form) {
     let obj = {};
     $(form).serializeArray().forEach(i => obj[i.name] = i.value);
     return obj;
-}
+};
 
 // WebSocket
 function join() {

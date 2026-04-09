@@ -2,7 +2,8 @@ use super::oauth;
 
 use crate::types::errors::AppError;
 use crate::types::lexicons::xyz::statusphere::status;
-use crate::types::lexicons::{record::KnownRecord, xyz::statusphere::Status};
+use crate::types::lexicons::xyz::mercato::listing as mercato_listing;
+use crate::types::lexicons::{record::KnownRecord, xyz::statusphere::Status, xyz::mercato::Listing};
 use anyhow::Context as _;
 use atrium_api::app::bsky::actor::defs::ProfileViewDetailedData;
 use atrium_api::app::bsky::actor::get_profile;
@@ -138,6 +139,82 @@ impl Agent {
     }
 
     // TODO: rewrite to directly act on app.bsky.actor.profile record?
+
+    pub async fn create_listing(
+        &self,
+        listing_data: mercato_listing::RecordData,
+        base_url: &str,
+    ) -> Result<create_record::OutputData, AppError> {
+        let title = listing_data.title.clone();
+        let record_wrapper: KnownRecord = listing_data.into();
+
+        // 1. Create the xyz.mercato.listing record
+        let record = self
+            .inner
+            .api
+            .com
+            .atproto
+            .repo
+            .create_record(
+                create_record::InputData {
+                    collection: Listing::NSID.parse().unwrap(),
+                    repo: self.did.clone().into(),
+                    rkey: None,
+                    record: record_wrapper.into(),
+                    swap_commit: None,
+                    validate: None,
+                }
+                .into(),
+            )
+            .await
+            .context("publish listing via agent")?;
+
+        // 2. Post a notification to bsky timeline
+        // Link format: https://<base_url>/listing/<repo>/<rkey>
+        // the record.data.uri is like at://did:abc/xyz.mercato.listing/tid123
+        let uri = &record.data.uri;
+        let parts: Vec<&str> = uri.split('/').collect();
+        let rkey = parts.last().unwrap_or(&"");
+        
+        let link = format!("{}/listing/{}/{}", base_url, self.did, rkey);
+        
+        let bsky_post = atrium_api::app::bsky::feed::post::Record::from(atrium_api::app::bsky::feed::post::RecordData {
+            created_at: Datetime::now(),
+            text: format!("New item on Mercato: {} 🏷️\n\nCheck it out here: {}", title, link),
+            embed: None,
+            entities: None,
+            facets: None,
+            labels: None,
+            langs: None,
+            reply: None,
+            tags: None,
+        });
+
+        let post_record_unknown = atrium_api::types::TryIntoUnknown::try_into_unknown(&bsky_post).unwrap();
+
+        let _bsky_record = self
+            .inner
+            .api
+            .com
+            .atproto
+            .repo
+            .create_record(
+                create_record::InputData {
+                    collection: "app.bsky.feed.post".parse().unwrap(),
+                    repo: self.did.clone().into(),
+                    rkey: None,
+                    record: post_record_unknown,
+                    swap_commit: None,
+                    validate: None,
+                }
+                .into(),
+            )
+            .await
+            .context("publish bsky notification for listing");
+
+        Ok(record.data)
+    }
+
     pub async fn bsky_profile(&self) -> Result<ProfileViewDetailedData, AppError> {
         let profile = self
             .inner

@@ -12,6 +12,9 @@ use crate::types::lexicons::xyz;
 use anyhow::anyhow;
 use atrium_api::types::string::Did;
 use chrono::Utc;
+use crate::types::lexicons::xyz::mercato::listing as mercato_listing;
+use crate::types::listing::Listing;
+use crate::types::lexicons::xyz::mercato::Listing as ListingCollection;
 use futures::StreamExt as _;
 
 const ALARM_INTERVAL_MS: i64 = 5 * 60 * 1000; // 5 minutes
@@ -96,8 +99,9 @@ pub async fn ingest(
         .expect("start time before 1970? idk");
 
     let jetstream_url = format!(
-        "wss://jetstream1.us-east.bsky.network/subscribe?wantedCollections={}&cursor={}",
+        "wss://jetstream1.us-east.bsky.network/subscribe?wantedCollections={}&wantedCollections={}&cursor={}",
         xyz::statusphere::Status::NSID,
+        ListingCollection::NSID,
         cursor
     );
 
@@ -113,7 +117,7 @@ pub async fn ingest(
 
         match event {
             WebsocketEvent::Message(message_event) => {
-                let message: Event<xyz::statusphere::status::RecordData> = message_event.json()?;
+                let message: Event<serde_json::Value> = message_event.json()?;
 
                 handle_jetstream_event(&state, &message).await?;
 
@@ -136,42 +140,62 @@ pub async fn ingest(
 
 pub async fn handle_jetstream_event(
     state: &ScheduledEventState,
-    event: &Event<xyz::statusphere::status::RecordData>,
+    event: &Event<serde_json::Value>,
 ) -> anyhow::Result<()> {
     if let Some(commit) = &event.commit {
         console_log!("commit event: {:?}", &event);
 
-        //We manually construct the uri since Jetstream does not provide it
-        //at://{users did}/{collection: xyz.statusphere.status}{records key}
         let record_uri = format!("at://{}/{}/{}", event.did, commit.collection, commit.rkey);
         match commit.operation {
             Operation::Create | Operation::Update => {
-                if let Some(record) = &commit.record {
+                if let Some(record_val) = &commit.record {
                     if let Some(ref _cid) = commit.cid {
-                        let created = record.created_at.as_ref();
                         let right_now = chrono::Utc::now();
+                        let author_did = Did::new(event.did.clone())
+                            .map_err(|s| anyhow!("invalid did from jetstream: {s}"))?;
 
-                        let status = Status {
-                            uri: record_uri,
-                            author_did: Did::new(event.did.clone())
-                                .map_err(|s| anyhow!("invalid did from jetstream: {s}"))?,
-                            status: record.status.clone(),
-                            created_at: created.to_utc(),
-                            indexed_at: right_now,
-                        };
-
-                        let updated = state
-                            .status_db
-                            .save_or_update_from_jetstream(&status)
-                            .await?;
-
-                        state.durable_object.broadcast(updated).await?;
+                        if commit.collection == xyz::statusphere::Status::NSID {
+                            let record: xyz::statusphere::status::RecordData = serde_json::from_value(record_val.clone())?;
+                            let created = record.created_at.as_ref();
+                            let status = Status {
+                                uri: record_uri.clone(),
+                                author_did,
+                                status: record.status.clone(),
+                                created_at: created.to_utc(),
+                                indexed_at: right_now,
+                            };
+                            let updated = state.status_db.save_or_update_from_jetstream(&status).await?;
+                            let _ = state.durable_object.broadcast(serde_json::to_value(updated)?).await;
+                        } else if commit.collection == ListingCollection::NSID {
+                            let record: mercato_listing::RecordData = serde_json::from_value(record_val.clone())?;
+                            let created = record.created_at.as_ref();
+                            let listing = Listing {
+                                uri: record_uri.clone(),
+                                author_did,
+                                title: record.title.clone(),
+                                description: record.description.clone(),
+                                role: record.role.clone(),
+                                price: record.price.clone(),
+                                barter_for: record.barter_for.clone(),
+                                lat: record.location.as_ref().map(|l| l.lat),
+                                lng: record.location.as_ref().map(|l| l.lng),
+                                fuzz: record.location.as_ref().and_then(|l| l.fuzz),
+                                city: record.location.as_ref().and_then(|l| l.city.clone()),
+                                created_at: created.to_utc(),
+                                indexed_at: right_now,
+                            };
+                            let updated = state.status_db.save_listing_from_jetstream(&listing).await?;
+                            let _ = state.durable_object.broadcast(serde_json::to_value(updated)?).await;
+                        }
                     }
                 }
             }
             Operation::Delete => {
-                // TODO: could broadcast this to the frontend as an update
-                state.status_db.delete_by_uri(&record_uri).await?;
+                if commit.collection == xyz::statusphere::Status::NSID {
+                    state.status_db.delete_by_uri(&record_uri).await?;
+                } else if commit.collection == ListingCollection::NSID {
+                    state.status_db.delete_listing_by_uri(&record_uri).await?;
+                }
             }
         }
     }

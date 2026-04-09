@@ -61,10 +61,10 @@ impl DurableObject for MsgBroker {
                     return self.subscribe_websocket().await;
                 }
             }
-            "/broadcast_status" => {
+            "/broadcast" => {
                 if req.method() == Method::Post {
-                    let status = req.json().await?;
-                    self.broadcast(status).await?;
+                    let message = req.json().await?;
+                    self.broadcast_generic(message).await?;
                     return worker::Response::empty();
                 }
             }
@@ -77,16 +77,21 @@ impl DurableObject for MsgBroker {
 
 impl MsgBroker {
     #[worker::send]
-    async fn broadcast(&mut self, status: StatusFromDb) -> worker::Result<()> {
-        let mut status = StatusWithHandle::from(status);
-
-        status.handle = self
-            .did_resolver
-            .resolve_handle_for_did(&status.author_did)
-            .await;
+    async fn broadcast_generic(&mut self, mut message: serde_json::Value) -> worker::Result<()> {
+        // Try to resolve handle for authorDid
+        if let Some(did_val) = message.get("authorDid").and_then(|v| v.as_str()) {
+            if let Ok(did) = did_val.parse() {
+                let handle = self.did_resolver.resolve_handle_for_did(&did).await;
+                if let Some(h) = handle {
+                    if let Some(obj) = message.as_object_mut() {
+                        obj.insert("handle".to_string(), serde_json::Value::String(h));
+                    }
+                }
+            }
+        }
 
         for ws in self.state.get_websockets() {
-            if let Err(e) = ws.send(&status) {
+            if let Err(e) = ws.send(&message) {
                 console_log!("error {e} on websocket send");
             }
         }

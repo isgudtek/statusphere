@@ -14,11 +14,15 @@ pub struct HomeTemplate {
     pub profile: Option<Profile>,
     pub my_status: Option<status::RecordData>,
     pub recent_statuses: Vec<StatusWithHandle>,
+    pub recent_listings: Vec<serde_json::Value>,
 }
 
 impl HomeTemplate {
     pub fn recent_statuses_json(&self) -> String {
         serde_json::to_string(&self.recent_statuses).unwrap_or_else(|_| "[]".to_string())
+    }
+    pub fn recent_listings_json(&self) -> String {
+        serde_json::to_string(&self.recent_listings).unwrap_or_else(|_| "[]".to_string())
     }
 }
 

@@ -6,8 +6,10 @@ use crate::types::status::STATUS_OPTIONS;
 use crate::{types::errors::AppError, types::templates::HomeTemplate};
 use crate::{
     types::status::{Status, StatusWithHandle},
+    types::listing::{Listing, ListingFromDb},
     types::templates::Profile,
 };
+use axum_extra::extract::Host;
 use anyhow::Context as _;
 use atrium_api::types::string::Handle;
 use atrium_oauth::{CallbackParams, OAuthClientMetadata};
@@ -105,6 +107,7 @@ pub async fn home(
             profile: None,
             my_status: None,
             recent_statuses,
+            recent_listings: fetch_recent_listings(&status_db, &did_resolver).await,
         });
     };
 
@@ -128,6 +131,7 @@ pub async fn home(
                 profile: None,
                 my_status: None,
                 recent_statuses,
+                recent_listings: fetch_recent_listings(&status_db, &did_resolver).await,
             });
         }
         Err(e) => return Err(e),
@@ -147,7 +151,31 @@ pub async fn home(
         }),
         my_status: current_status,
         recent_statuses,
+        recent_listings: fetch_recent_listings(&status_db, &did_resolver).await,
     })
+}
+
+async fn fetch_recent_listings(status_db: &crate::storage::db::StatusDb, did_resolver: &crate::services::resolvers::DidResolver) -> Vec<serde_json::Value> {
+    match status_db.load_latest_listings(20).await {
+        Ok(listings) => {
+            let mut resolved = Vec::new();
+            for l in listings.into_iter() {
+                let mut val = serde_json::to_value(l).unwrap();
+                if let Some(obj) = val.as_object_mut() {
+                    let author_did = obj.get("authorDid").and_then(|v| v.as_str()).unwrap().parse().unwrap();
+                    let handle = did_resolver.resolve_handle_for_did(&author_did).await;
+                    obj.insert("handle".to_string(), serde_json::to_value(handle).unwrap());
+                    obj.insert("$type".to_string(), serde_json::Value::String("listing".to_string()));
+                }
+                resolved.push(val);
+            }
+            resolved
+        }
+        Err(e) => {
+            console_log!("Error loading recent listings for seeding: {}", e);
+            Vec::new()
+        }
+    }
 }
 
 /// Post body for changing your status
@@ -197,6 +225,96 @@ pub async fn status(
         .resolve_handle_for_did(&status_with_handle.author_did)
         .await;
     Ok(Json(status_with_handle))
+}
+
+#[derive(Deserialize, Serialize, Clone)]
+pub struct ListingForm {
+    pub title: String,
+    pub description: Option<String>,
+    pub role: String,
+    pub price: Option<String>,
+    pub barter_for: Option<String>,
+    pub lat: Option<f64>,
+    pub lng: Option<f64>,
+    pub city: Option<String>,
+}
+
+#[worker::send]
+pub async fn create_listing(
+    Host(host): Host,
+    State(AppState {
+        oauth,
+        status_db,
+        durable_object,
+        did_resolver,
+    }): State<AppState>,
+    session: Session,
+    Json(form): Json<ListingForm>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    console_log!("create_listing handler");
+    let did = session.get("did").await?.ok_or(AppError::NoSessionAuth)?;
+
+    let agent = match oauth.restore_session(&did).await {
+        Ok(agent) => agent,
+        Err(err) => {
+            session.flush().await?;
+            return Err(err);
+        }
+    };
+
+    let base_url = format!("https://{}", host);
+    
+    let record_data = crate::types::lexicons::xyz::mercato::listing::RecordData {
+        title: form.title.clone(),
+        description: form.description.clone(),
+        role: form.role.clone(),
+        price: form.price.clone(),
+        barter_for: form.barter_for.clone(),
+        location: form.lat.and_then(|lat| form.lng.map(|lng| crate::types::lexicons::xyz::mercato::listing::Location {
+            lat,
+            lng,
+            fuzz: None,
+            city: form.city.clone(),
+        })),
+        images: None, // TODO support images
+        created_at: atrium_api::types::string::Datetime::now(),
+    };
+
+    let uri = agent.create_listing(record_data, &base_url).await?.uri;
+
+    let listing = Listing {
+        uri,
+        author_did: did,
+        title: form.title,
+        description: form.description,
+        role: form.role,
+        price: form.price,
+        barter_for: form.barter_for,
+        lat: form.lat,
+        lng: form.lng,
+        fuzz: None,
+        city: form.city,
+        created_at: chrono::Utc::now(),
+        indexed_at: chrono::Utc::now(),
+    };
+
+    let listing_from_db = status_db.save_listing_optimistic(&listing).await?;
+
+    // Broadcast to WebSocket clients
+    let mut broadcast_val = serde_json::to_value(&listing_from_db).unwrap();
+    if let Some(obj) = broadcast_val.as_object_mut() {
+        obj.insert("$type".to_string(), serde_json::Value::String("listing".to_string()));
+    }
+    durable_object.broadcast(broadcast_val).await?;
+
+    // Resolve handle for return
+    let mut return_val = serde_json::to_value(&listing_from_db).unwrap();
+    if let Some(obj) = return_val.as_object_mut() {
+        let handle = did_resolver.resolve_handle_for_did(&listing_from_db.author_did).await;
+        obj.insert("handle".to_string(), serde_json::to_value(handle).unwrap());
+    }
+
+    Ok(Json(return_val))
 }
 
 #[worker::send]

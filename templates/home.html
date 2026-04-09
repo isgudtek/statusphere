@@ -41,6 +41,24 @@
 
 
         </div>
+
+        {% if profile.is_some() %}
+        <div class="card">
+            <h3>Post a Listing</h3>
+            <form id="listing-form" class="listing-form">
+                <input type="text" name="title" placeholder="What are you trading? (e.g. 1 hour of gardening)" required />
+                <textarea name="description" placeholder="Details..."></textarea>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <label><input type="radio" name="role" value="maker" checked /> Maker (I have this)</label>
+                    <label><input type="radio" name="role" value="taker" /> Taker (I want this)</label>
+                </div>
+                <input type="text" name="price" placeholder="Price (optional, e.g. 10 EUR)" />
+                <input type="text" name="barter_for" placeholder="Barter for (optional, e.g. 2 eggs)" />
+                <button type="submit">Post Listing</button>
+            </form>
+        </div>
+        {% endif %}
+
         <form id= "status-form" class="status-options">
             {% for status in status_options %}
             <!-- TODO: update the selected element here on form submit -->
@@ -64,6 +82,11 @@
 <script type="text/javascript">
 // Initial statuses data
 const initialStatuses = {{ self.recent_statuses_json()|safe }};
+const initialListings = {{ self.recent_listings_json()|safe }};
+
+// Combine and sort interleaved timeline
+let timeline = [...initialStatuses.map(s => ({...s, type: 'status'})), ...initialListings.map(l => ({...l, type: 'listing'}))];
+timeline.sort((a, b) => new Date(b.created_at || b.createdAt) - new Date(a.created_at || a.createdAt));
 
 let currentWebSocket = null;
 let reconnectAttempts = 0;
@@ -141,26 +164,98 @@ function renderStatus(data) {
     statusWrapper.append(desc);
     statusWrapper.append(tooltip);
 
-    // Update selected status button if this is the current user's status
-    if (did && data.author_did === did) {
-        $('.status-option').removeClass('selected');
-        $('.status-option').each(function() {
-            if ($(this).text() === data.status) {
-                $(this).addClass('selected');
-            }
-        });
-    }
-
     if (!updating_existing) {
         $("#statuscontainer").prepend(statusWrapper);
     }
 }
 
+function renderListing(data) {
+    let id = "listing_" + data.uri.replaceAll("/", "_").replaceAll(":", "_").replaceAll(".", "_");
+    let listingWrapper = null;
+    let preexisting = $("#" + id);
+    let updating_existing = false;
+
+    if (preexisting.length == 0) {
+        listingWrapper = $('<div>', {
+            class: "status-line listing-line tooltip",
+            id: id,
+            style: "border-left: 4px solid #f39c12;" // give listings a distinct look
+        });
+    } else {
+        preexisting.empty();
+        listingWrapper = preexisting;
+        updating_existing = true;
+    }
+
+    let icon = $('<div>', { class: "status", text: data.role === 'maker' ? "📦" : "🔍" });
+    let desc = $('<div>', { class: "desc" });
+    let author = $('<a>', {
+        class: "author",
+        href: "https://bsky.app/profile/" + data.authorDid,
+        text: data.handle ? data.handle : data.authorDid
+    });
+    
+    desc.append(author);
+    desc.append(document.createTextNode(" " + (data.role === 'maker' ? "is offering " : "is looking for ") + "\"" + data.title + "\""));
+    
+    if (data.price || data.barterFor) {
+        let tradeInfo = $('<div>', { style: "font-size: 0.9em; margin-top: 4px; color: #555;" });
+        if (data.price) tradeInfo.append($('<span>', { text: "Price: " + data.price + " " }));
+        if (data.barterFor) tradeInfo.append($('<span>', { text: "Trade for: " + data.barterFor }));
+        desc.append(tradeInfo);
+    }
+
+    let dateStr = data.createdAt ? new Date(data.createdAt).toLocaleString() : "";
+    if (dateStr) {
+        let timeSpan = $('<span>', {
+            style: "color: #888; font-size: 0.8em; margin-left: 8px;",
+            text: "on " + dateStr
+        });
+        desc.append(timeSpan);
+    }
+
+    listingWrapper.append(icon);
+    listingWrapper.append(desc);
+
+    if (!updating_existing) {
+        $("#statuscontainer").prepend(listingWrapper);
+    }
+}
+
 // Initialize status container with initial data
 $(document).ready(function() {
-    // Render initial statuses in reverse order so newest appears at top
-    initialStatuses.reverse().forEach(function(status) {
-        renderStatus(status);
+    // Render sorted timeline
+    timeline.reverse().forEach(function(item) {
+        if (item.type === 'status' || (!item.type && item.status)) {
+            renderStatus(item);
+        } else {
+            renderListing(item);
+        }
+    });
+});
+
+$('#listing-form').on('submit', function(e) {
+    e.preventDefault();
+    let formData = {};
+    $(this).serializeArray().forEach(item => {
+        if (item.value) formData[item.name] = item.value;
+    });
+
+    $.ajax({
+        type: "POST",
+        url: "/listing",
+        data: JSON.stringify(formData),
+        contentType: "application/json; charset=utf-8",
+        dataType: "json",
+        success: function(data) {
+            console.log("Listing created", data);
+            renderListing(data);
+            $('#listing-form')[0].reset();
+        },
+        error: function(xhr, status, error) {
+            console.error("Listing creation failed:", error);
+            alert("Failed to create listing. Please try again.");
+        }
     });
 });
 
@@ -243,8 +338,11 @@ function join() {
     if (data.error) {
       console.log("error from backend", data)
     } else {
-      console.log("status from backend", data)
-      renderStatus(data);
+      if (data.$type === 'listing') {
+          renderListing(data);
+      } else {
+          renderStatus(data);
+      }
     }
   });
 

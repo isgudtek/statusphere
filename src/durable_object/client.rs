@@ -36,13 +36,13 @@ impl MessageBroker {
         Ok(resp.try_into().unwrap())
     }
 
-    pub async fn broadcast(&self, status: StatusFromDb) -> anyhow::Result<()> {
-        console_log!("broadcast status");
+    pub async fn broadcast(&self, message: serde_json::Value) -> anyhow::Result<()> {
+        console_log!("broadcast message");
         let req = Request::builder()
             .method("POST")
-            .uri("https://stub.com/broadcast_status")
+            .uri("https://stub.com/broadcast")
             .header("Content-Type", "application/json")
-            .body(serde_json::to_string(&status).context("convert to json")?)
+            .body(serde_json::to_string(&message).context("convert to json")?)
             .context("building request")?;
 
         let req = request_to_wasm(req).context("building req")?;

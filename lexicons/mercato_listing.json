@@ -1,0 +1,45 @@
+{
+  "lexicon": 1,
+  "id": "xyz.mercato.listing",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A granular local marketplace listing for bartering or trade.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["title", "role", "createdAt"],
+        "properties": {
+          "title": { "type": "string", "maxLength": 100 },
+          "description": { "type": "string", "maxLength": 2000 },
+          "role": { 
+            "type": "string", 
+            "description": "maker (creator of liquidity/item) or taker (looking for liquidity/item)",
+            "knownValues": ["maker", "taker"] 
+          },
+          "price": { "type": "string", "description": "Optional price in currency or units" },
+          "barter_for": { 
+            "type": "string", 
+            "description": "What you want in exchange",
+            "maxLength": 300 
+          },
+          "location": {
+            "type": "object",
+            "properties": {
+              "lat": { "type": "float" },
+              "lng": { "type": "float" },
+              "fuzz": { "type": "integer" },
+              "city": { "type": "string" }
+            }
+          },
+          "images": {
+            "type": "array",
+            "items": { "type": "blob", "accept": ["image/*"], "maxSize": 1000000 },
+            "maxLength": 4
+          },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

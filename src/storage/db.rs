@@ -1,4 +1,5 @@
 use crate::types::status::{Status, StatusFromDb};
+use crate::types::listing::{Listing, ListingFromDb};
 use std::sync::Arc;
 use worker::{console_debug, query, D1Database, Result};
 
@@ -117,6 +118,100 @@ impl StatusDb {
         .run()
         .await?;
 
+        Ok(())
+    }
+
+    pub async fn save_listing_optimistic(&self, listing: &Listing) -> Result<ListingFromDb> {
+        let res = query!(&self.0, r#"INSERT INTO listings (uri, authorDid, title, description, role, price, barterFor, lat, lng, fuzz, city, createdAt, indexedAt, seenOnJetstream, createdViaThisApp) 
+                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, FALSE, TRUE)
+                      ON CONFLICT (uri)
+                      DO UPDATE
+                      SET
+                        createdViaThisApp = TRUE
+                      RETURNING *
+                      "#,
+                    &listing.uri,
+                    &listing.author_did,
+                    &listing.title,
+                    &listing.description,
+                    &listing.role,
+                    &listing.price,
+                    &listing.barter_for,
+                    &listing.lat,
+                    &listing.lng,
+                    &listing.fuzz,
+                    &listing.city,
+                    &listing.created_at,
+                    &listing.indexed_at,
+        )?.first(None).await?;
+
+        let res = res.ok_or(worker::Error::Infallible)?;
+        Ok(res)
+    }
+
+    pub async fn save_listing_from_jetstream(&self, listing: &Listing) -> Result<ListingFromDb> {
+        let res = query!(&self.0, r#"INSERT INTO listings (uri, authorDid, title, description, role, price, barterFor, lat, lng, fuzz, city, createdAt, indexedAt, seenOnJetstream, createdViaThisApp) 
+                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, TRUE, FALSE)
+                      ON CONFLICT (uri)
+                      DO UPDATE
+                      SET
+                        title = ?14,
+                        description = ?15,
+                        role = ?16,
+                        price = ?17,
+                        barterFor = ?18,
+                        lat = ?19,
+                        lng = ?20,
+                        fuzz = ?21,
+                        city = ?22,
+                        indexedAt = ?23,
+                        seenOnJetstream = TRUE 
+                      RETURNING *
+                      "#,  
+                    &listing.uri,
+                    &listing.author_did,
+                    &listing.title,
+                    &listing.description,
+                    &listing.role,
+                    &listing.price,
+                    &listing.barter_for,
+                    &listing.lat,
+                    &listing.lng,
+                    &listing.fuzz,
+                    &listing.city,
+                    &listing.created_at,
+                    &listing.indexed_at,
+                    // update
+                    &listing.title,
+                    &listing.description,
+                    &listing.role,
+                    &listing.price,
+                    &listing.barter_for,
+                    &listing.lat,
+                    &listing.lng,
+                    &listing.fuzz,
+                    &listing.city,
+                    &listing.indexed_at,
+        )?.first(None).await?;
+        let res = res.ok_or(worker::Error::Infallible)?;
+        Ok(res)
+    }
+
+    pub async fn load_latest_listings(&self, n: usize) -> Result<Vec<ListingFromDb>> {
+        query!(
+            &self.0,
+            "SELECT * FROM listings ORDER BY indexedAt DESC LIMIT ?1",
+            n
+        )?
+        .all()
+        .await?
+        .results()
+    }
+
+    pub async fn delete_listing_by_uri(&self, uri: &str) -> Result<()> {
+        query!(&self.0, "DELETE FROM listings WHERE uri = ?1", &uri)?
+            .run()
+            .await?;
         Ok(())
     }
 }

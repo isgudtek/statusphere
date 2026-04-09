@@ -204,7 +204,7 @@ impl StatusDb {
     pub async fn load_latest_listings(&self, n: usize) -> Result<Vec<ListingFromDb>> {
         query!(
             &self.0,
-            "SELECT * FROM listings ORDER BY indexedAt DESC LIMIT ?1",
+            "SELECT * FROM listings WHERE NOT EXISTS (SELECT 1 FROM comments c WHERE c.subjectUri = listings.uri AND c.authorDid = listings.authorDid AND LOWER(c.content) = 'closed') ORDER BY indexedAt DESC LIMIT ?1",
             n
         )?
         .all()
@@ -261,9 +261,9 @@ impl StatusDb {
         let search_pattern = format!("%{}%", q_param);
         
         let query_str = if has_q {
-            "SELECT * FROM listings WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND CAST(latitude AS REAL) >= ?1 AND CAST(latitude AS REAL) <= ?2 AND CAST(longitude AS REAL) >= ?3 AND CAST(longitude AS REAL) <= ?4 AND (title LIKE ?5 OR description LIKE ?5) ORDER BY indexedAt DESC LIMIT 100"
+            "SELECT * FROM listings WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND CAST(latitude AS REAL) >= ?1 AND CAST(latitude AS REAL) <= ?2 AND CAST(longitude AS REAL) >= ?3 AND CAST(longitude AS REAL) <= ?4 AND (title LIKE ?5 OR description LIKE ?5) AND NOT EXISTS (SELECT 1 FROM comments c WHERE c.subjectUri = listings.uri AND c.authorDid = listings.authorDid AND LOWER(c.content) = 'closed') ORDER BY indexedAt DESC LIMIT 100"
         } else {
-            "SELECT * FROM listings WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND CAST(latitude AS REAL) >= ?1 AND CAST(latitude AS REAL) <= ?2 AND CAST(longitude AS REAL) >= ?3 AND CAST(longitude AS REAL) <= ?4 ORDER BY indexedAt DESC LIMIT 100"
+            "SELECT * FROM listings WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND CAST(latitude AS REAL) >= ?1 AND CAST(latitude AS REAL) <= ?2 AND CAST(longitude AS REAL) >= ?3 AND CAST(longitude AS REAL) <= ?4 AND NOT EXISTS (SELECT 1 FROM comments c WHERE c.subjectUri = listings.uri AND c.authorDid = listings.authorDid AND LOWER(c.content) = 'closed') ORDER BY indexedAt DESC LIMIT 100"
         };
 
         if has_q {

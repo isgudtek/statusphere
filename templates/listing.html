@@ -5,35 +5,35 @@
     <!-- Sidebar -->
     <nav class="sidebar">
         <a href="/" class="logo">
-            <span>🛒</span>
-            <span>MERCATO</span>
+            <span class="logo-icon">🛒</span>
+            <span class="logo-text">MERCATO</span>
         </a>
         
         <div class="nav-links">
             <a href="/" class="nav-item">
-                <span>🏠</span>
-                <span>Home</span>
+                <span class="nav-icon">🏠</span>
+                <span class="nav-label">Home</span>
             </a>
             <a href="/discover" class="nav-item">
-                <span>🔍</span>
-                <span>Search</span>
+                <span class="nav-icon">🔍</span>
+                <span class="nav-label">Discover</span>
             </a>
             <a href="javascript:void(0)" class="nav-item">
-                <span>👤</span>
-                <span>Profile</span>
+                <span class="nav-icon">👤</span>
+                <span class="nav-label">Profile</span>
             </a>
         </div>
 
         <div class="user-mini">
             {% if let Some(Profile {did, display_name}) = profile %}
-            <div class="user-avatar" id="nav-avatar"></div>
+            <div class="user-avatar-small" id="nav-avatar"></div>
             <script>setTimeout(()=>loadAvatar("{{did}}", "#nav-avatar"), 100);</script>
             <div class="user-info">
                 <span class="user-name">{{ display_name.as_deref().unwrap_or("Friend") }}</span>
                 <span class="user-handle">{{ did }}</span>
             </div>
             {% else %}
-            <a href="/login" style="text-decoration: none; color: white;">Log In</a>
+            <a href="/login" style="text-decoration: none; color: var(--accent-color); font-weight: 700;">Log In</a>
             {% endif %}
         </div>
     </nav>
@@ -86,16 +86,34 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 <script type="text/javascript">
 const data = {{ listing|safe }};
+const profileDid = "{% if let Some(p) = profile %}{{ p.did }}{% endif %}";
 
 function renderListingDetail(l) {
-    let badgeClass = l.role === 'maker' ? 'badge-maker' : 'badge-taker';
+    let isClosed = data.comments && data.comments.some(c => c.authorDid === data.authorDid && c.content.toLowerCase().trim() === 'closed');
+    let badgeClass = l.role === 'maker' ? 'type-offer' : 'type-request';
     let roleText = l.role === 'maker' ? 'OFFERING' : 'LOOKING FOR';
+    
+    if (isClosed) {
+        badgeClass = '';
+        roleText = '🔒 CLOSED';
+    }
+    
+    let isOwner = profileDid === l.authorDid;
     
     let html = `
         ${l.imageCid ? `
             <div class="listing-detail-image" style="background-image: url('https://cdn.bsky.app/img/feed_fullsize/plain/${l.authorDid}/${l.imageCid}@jpeg')"></div>
         ` : ''}
-        <div class="listing-badge ${badgeClass}" style="margin-bottom: 12px; margin-top: 20px;">${roleText}</div>
+        
+        ${isOwner && !isClosed ? `
+            <div style="margin-top: 16px;">
+                <button onclick="closeListing()" style="background: rgba(255,0,0,0.1); color: #ff4444; border: 1px solid rgba(255,0,0,0.3); padding: 8px 16px; border-radius: 9999px; font-weight: bold; cursor: pointer; transition: all 0.2s;">
+                    Close Listing
+                </button>
+            </div>
+        ` : ''}
+        
+        <div class="listing-badge ${badgeClass}" style="margin-bottom: 12px; margin-top: 20px; ${isClosed ? 'background: #333; border: 1px solid #555; color: #fff;' : ''}">${roleText}</div>
         <h1 style="font-size: 2.2rem; margin-bottom: 8px; font-weight: 900;">${l.title}</h1>
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 24px;">
             <div class="user-avatar-small" id="listing-author-avatar" style="width: 32px; height: 32px; border-radius: 50%;"></div>
@@ -153,6 +171,23 @@ $(document).ready(function() {
         data.comments.forEach(renderComment);
     }
 });
+
+window.closeListing = function() {
+    if (!confirm("Are you sure you want to close this listing? It will be removed from the map and feeds.")) return;
+    $.ajax({
+        type: "POST",
+        url: window.location.pathname.replace(/\/$/, '') + "/comment",
+        data: JSON.stringify({ content: "closed" }),
+        contentType: "application/json",
+        dataType: "json",
+        success: function() {
+            window.location.reload();
+        },
+        error: function(err) {
+            alert("Failed: " + (err.responseText || "Unknown error"));
+        }
+    });
+};
 
 $('#comment-form').on('submit', function(e) {
     e.preventDefault();

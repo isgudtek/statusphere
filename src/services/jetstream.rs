@@ -177,15 +177,19 @@ pub async fn handle_jetstream_event(
                                 role: record.role.clone(),
                                 price: record.price.clone(),
                                 barter_for: record.barter_for.clone(),
-                                lat: record.location.as_ref().map(|l| l.lat),
-                                lng: record.location.as_ref().map(|l| l.lng),
-                                fuzz: record.location.as_ref().and_then(|l| l.fuzz),
-                                city: record.location.as_ref().and_then(|l| l.city.clone()),
+                                latitude: record.geo.as_ref().map(|g| g.latitude.clone()),
+                                longitude: record.geo.as_ref().map(|g| g.longitude.clone()),
+                                altitude: record.geo.as_ref().and_then(|g| g.altitude.clone()),
+                                location_name: record.geo.as_ref().and_then(|g| g.name.clone()),
                                 created_at: created.to_utc(),
                                 indexed_at: right_now,
                             };
                             let updated = state.status_db.save_listing_from_jetstream(&listing).await?;
                             let _ = state.durable_object.broadcast(serde_json::to_value(updated)?).await;
+                        } else if commit.collection == "xyz.mercato.comment" {
+                            // TODO: Add comment db logic and broadcast
+                            // For now just broadcast generic if possible
+                            let _ = state.durable_object.broadcast(serde_json::to_value(record_val)?).await;
                         }
                     }
                 }

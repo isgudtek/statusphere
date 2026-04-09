@@ -122,7 +122,7 @@ impl StatusDb {
     }
 
     pub async fn save_listing_optimistic(&self, listing: &Listing) -> Result<ListingFromDb> {
-        let res = query!(&self.0, r#"INSERT INTO listings (uri, authorDid, title, description, role, price, barterFor, lat, lng, fuzz, city, createdAt, indexedAt, seenOnJetstream, createdViaThisApp) 
+        let res = query!(&self.0, r#"INSERT INTO listings (uri, authorDid, title, description, role, price, barterFor, latitude, longitude, altitude, locationName, createdAt, indexedAt, seenOnJetstream, createdViaThisApp) 
                       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, FALSE, TRUE)
                       ON CONFLICT (uri)
                       DO UPDATE
@@ -137,10 +137,10 @@ impl StatusDb {
                     &listing.role,
                     &listing.price,
                     &listing.barter_for,
-                    &listing.lat,
-                    &listing.lng,
-                    &listing.fuzz,
-                    &listing.city,
+                    &listing.latitude,
+                    &listing.longitude,
+                    &listing.altitude,
+                    &listing.location_name,
                     &listing.created_at,
                     &listing.indexed_at,
         )?.first(None).await?;
@@ -150,7 +150,7 @@ impl StatusDb {
     }
 
     pub async fn save_listing_from_jetstream(&self, listing: &Listing) -> Result<ListingFromDb> {
-        let res = query!(&self.0, r#"INSERT INTO listings (uri, authorDid, title, description, role, price, barterFor, lat, lng, fuzz, city, createdAt, indexedAt, seenOnJetstream, createdViaThisApp) 
+        let res = query!(&self.0, r#"INSERT INTO listings (uri, authorDid, title, description, role, price, barterFor, latitude, longitude, altitude, locationName, createdAt, indexedAt, seenOnJetstream, createdViaThisApp) 
                       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, TRUE, FALSE)
                       ON CONFLICT (uri)
                       DO UPDATE
@@ -160,10 +160,10 @@ impl StatusDb {
                         role = ?16,
                         price = ?17,
                         barterFor = ?18,
-                        lat = ?19,
-                        lng = ?20,
-                        fuzz = ?21,
-                        city = ?22,
+                        latitude = ?19,
+                        longitude = ?20,
+                        altitude = ?21,
+                        locationName = ?22,
                         indexedAt = ?23,
                         seenOnJetstream = TRUE 
                       RETURNING *
@@ -175,10 +175,10 @@ impl StatusDb {
                     &listing.role,
                     &listing.price,
                     &listing.barter_for,
-                    &listing.lat,
-                    &listing.lng,
-                    &listing.fuzz,
-                    &listing.city,
+                    &listing.latitude,
+                    &listing.longitude,
+                    &listing.altitude,
+                    &listing.location_name,
                     &listing.created_at,
                     &listing.indexed_at,
                     // update
@@ -187,10 +187,10 @@ impl StatusDb {
                     &listing.role,
                     &listing.price,
                     &listing.barter_for,
-                    &listing.lat,
-                    &listing.lng,
-                    &listing.fuzz,
-                    &listing.city,
+                    &listing.latitude,
+                    &listing.longitude,
+                    &listing.altitude,
+                    &listing.location_name,
                     &listing.indexed_at,
         )?.first(None).await?;
         let res = res.ok_or(worker::Error::Infallible)?;
@@ -213,5 +213,41 @@ impl StatusDb {
             .run()
             .await?;
         Ok(())
+    }
+
+    pub async fn get_listing_by_did_rkey(&self, did: &str, rkey: &str) -> Result<Option<ListingFromDb>> {
+        // uri format: at://did:abc/xyz.mercato.listing/rkey
+        let uri = format!("at://{}/xyz.mercato.listing/{}", did, rkey);
+        query!(&self.0, "SELECT * FROM listings WHERE uri = ?1", &uri)?
+            .first(None)
+            .await
+    }
+
+    pub async fn save_comment(&self, comment: &crate::types::lexicons::xyz::mercato::comment::RecordData, uri: String, author_did: String, seen_on_jetstream: bool, created_via_this_app: bool) -> Result<()> {
+        let indexed_at = chrono::Utc::now();
+        query!(&self.0, r#"INSERT INTO comments (uri, authorDid, subjectUri, content, createdAt, indexedAt, seenOnJetstream, createdViaThisApp) 
+                      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                      ON CONFLICT (uri) DO NOTHING"#,
+                    &uri,
+                    &author_did,
+                    &comment.subject,
+                    &comment.content,
+                    &comment.created_at,
+                    &indexed_at,
+                    seen_on_jetstream,
+                    created_via_this_app
+        )?.run().await?;
+        Ok(())
+    }
+
+    pub async fn load_comments_for_listing(&self, listing_uri: &str) -> Result<Vec<serde_json::Value>> {
+        query!(
+            &self.0,
+            "SELECT * FROM comments WHERE subjectUri = ?1 ORDER BY createdAt ASC",
+            listing_uri
+        )?
+        .all()
+        .await?
+        .results()
     }
 }

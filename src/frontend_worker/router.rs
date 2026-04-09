@@ -19,6 +19,8 @@ pub fn router(state: AppState, session_store: KvTowerSessionStore) -> Router {
         .route("/logout", get(endpoints::logout))
         .route("/status", post(endpoints::status))
         .route("/listing", post(endpoints::create_listing))
+        .route("/listing/:did/:rkey", get(endpoints::view_listing))
+        .route("/listing/:did/:rkey/comment", post(endpoints::post_comment))
         .route("/websocket", get(endpoints::websocket))
         .route(
             "/admin/publish_jetstream_event",

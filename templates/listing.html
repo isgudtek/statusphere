@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="root">
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <a href="/" class="logo">
+            <span>🛒</span>
+            <span>MERCATO</span>
+        </a>
+        
+        <div class="nav-links">
+            <a href="/" class="nav-item">
+                <span>🏠</span>
+                <span>Home</span>
+            </a>
+            <a href="#" class="nav-item">
+                <span>🔍</span>
+                <span>Search</span>
+            </a>
+            <a href="#" class="nav-item">
+                <span>👤</span>
+                <span>Profile</span>
+            </a>
+        </div>
+
+        <div class="user-mini">
+            {% if let Some(Profile {did, display_name}) = profile %}
+            <div class="user-avatar"></div>
+            <div class="user-info">
+                <span class="user-name">{{ display_name.as_deref().unwrap_or("Friend") }}</span>
+                <span class="user-handle">{{ did }}</span>
+            </div>
+            {% else %}
+            <a href="/login" style="text-decoration: none; color: white;">Log In</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <header>
+            <a href="/" style="text-decoration: none; color: white; margin-right: 20px;">←</a>
+            <h2>Listing</h2>
+        </header>
+
+        <div id="listing-detail" style="padding: 20px; border-bottom: 1px solid var(--border-color);">
+            <!-- listing injection via JS to keep logic consistent -->
+        </div>
+
+        <div id="comment-section" style="padding: 20px;">
+            <h3>Comments</h3>
+            
+            {% if profile.is_some() %}
+            <div class="compose-area" style="margin-top: 20px; border: 1px solid var(--border-color); border-radius: 12px;">
+                <form id="comment-form" class="compose-form">
+                    <div class="compose-main">
+                        <textarea name="content" class="compose-input" placeholder="Join the discussion..." style="font-size: 1rem; min-height: 80px;"></textarea>
+                        <div class="compose-footer">
+                            <div></div>
+                            <button type="submit" class="btn-submit">Reply</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            {% else %}
+            <p style="color: var(--text-secondary); margin-top: 20px;">Log in to join the discussion.</p>
+            {% endif %}
+
+            <div id="comment-container" style="margin-top: 20px;">
+                <!-- Comments injected here -->
+            </div>
+        </div>
+    </main>
+
+    <aside class="right-sidebar">
+        <div class="sidebar-card">
+            <h3>Item Details</h3>
+            <div id="item-meta" style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6;"></div>
+        </div>
+    </aside>
+</div>
+{%endblock content%}
+
+{%block js%}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script type="text/javascript">
+const data = {{ listing|safe }};
+
+function renderListingDetail(l) {
+    let badgeClass = l.role === 'maker' ? 'badge-maker' : 'badge-taker';
+    let roleText = l.role === 'maker' ? 'OFFERING' : 'LOOKING FOR';
+    
+    let html = `
+        <div class="listing-badge ${badgeClass}" style="margin-bottom: 12px;">${roleText}</div>
+        <h1 style="font-size: 1.8rem; margin-bottom: 8px;">${l.title}</h1>
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+            <div class="status-avatar" style="width: 32px; height: 32px; font-size: 1rem;">👤</div>
+            <a href="https://bsky.app/profile/${l.authorDid}" class="author">${l.handle || l.authorDid}</a>
+        </div>
+        <div style="font-size: 1.1rem; line-height: 1.6; margin-bottom: 24px;">${l.description || "No description provided."}</div>
+        
+        ${(l.price || l.barterFor) ? `
+            <div class="trade-details" style="font-size: 1.1rem; padding: 16px;">
+                ${l.price ? `<div style="margin-bottom: 8px;">💰 <strong>Price:</strong> ${l.price}</div>` : ""}
+                ${l.barterFor ? `<div>🤝 <strong>Trade for:</strong> ${l.barterFor}</div>` : ""}
+            </div>
+        ` : ""}
+
+        ${l.latitude ? `
+            <div style="margin-top: 20px; color: var(--accent-color);">
+                📍 Located in: <strong>${l.locationName || "Local Area"}</strong><br/>
+                <span style="font-size: 0.8rem; opacity: 0.7;">Coordinates: ${l.latitude}, ${l.longitude}</span>
+            </div>
+        ` : ""}
+    `;
+    $("#listing-detail").html(html);
+
+    let meta = `
+        <div><strong>Posted:</strong> ${new Date(l.createdAt).toLocaleString()}</div>
+        <div><strong>Status:</strong> ${l.seenOnJetstream ? "Verified on ATProto ✅" : "Local draft"}</div>
+        <div style="margin-top: 10px;"><a href="https://bsky.app/profile/${l.authorDid}" style="color: var(--primary-blue);">View Author Profile</a></div>
+    `;
+    $("#item-meta").html(meta);
+}
+
+function renderComment(c) {
+    let dateStr = new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    let html = `
+        <div class="status-line" style="padding-left: 0;">
+            <div class="status-avatar" style="width: 32px; height: 32px; font-size: 1rem;">💬</div>
+            <div class="status-content">
+                <div class="status-header">
+                    <a href="https://bsky.app/profile/${c.authorDid}" class="author">${c.handle || c.authorDid.slice(0,10)+'...'}</a>
+                    <span class="handle-time">· ${dateStr}</span>
+                </div>
+                <div class="status-text">${c.content}</div>
+            </div>
+        </div>
+    `;
+    $("#comment-container").append(html);
+}
+
+$(document).ready(function() {
+    renderListingDetail(data);
+    if (data.comments) {
+        data.comments.forEach(renderComment);
+    }
+});
+
+$('#comment-form').on('submit', function(e) {
+    e.preventDefault();
+    let content = $(this).find('textarea').val();
+    if (!content) return;
+
+    $.ajax({
+        type: "POST",
+        url: window.location.pathname + "/comment",
+        data: JSON.stringify({ content: content }),
+        contentType: "application/json",
+        dataType: "json",
+        success: function(c) {
+            renderComment(c);
+            $('#comment-form')[0].reset();
+        }
+    });
+});
+</script>
+{%endblock js%}

@@ -34,6 +34,20 @@ impl IntoResponse for HomeTemplate {
     }
 }
 
+#[derive(Template)]
+#[template(path = "listing.html")]
+pub struct ListingTemplate {
+    pub profile: Option<Profile>,
+    pub listing: serde_json::Value,
+}
+
+impl IntoResponse for ListingTemplate {
+    fn into_response(self) -> axum::response::Response {
+        let html = self.render().expect("template should be valid");
+        Html::from(html).into_response()
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Profile {
     pub did: String,

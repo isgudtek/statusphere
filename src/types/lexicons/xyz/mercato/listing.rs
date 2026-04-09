@@ -3,11 +3,11 @@ use atrium_api::types::TryFromUnknown;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct Location {
-    pub lat: f64,
-    pub lng: f64,
-    pub fuzz: Option<i32>,
-    pub city: Option<String>,
+pub struct Geo {
+    pub latitude: String,
+    pub longitude: String,
+    pub name: Option<String>,
+    pub altitude: Option<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq)]
@@ -19,7 +19,7 @@ pub struct RecordData {
     pub description: Option<String>,
     pub price: Option<String>,
     pub barter_for: Option<String>,
-    pub location: Option<Location>,
+    pub geo: Option<Geo>,
     pub images: Option<Vec<atrium_api::types::BlobRef>>,
 }
 

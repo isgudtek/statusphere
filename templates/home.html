@@ -2,229 +2,241 @@
 
 {% block content %}
 <div id="root">
-    <div class="error"></div>
-    <div id="header">
-        <h1>Serverless Statusphere</h1>
-        <p>Set your status on the Atmosphere.</p>
-    </div>
-    <div class="container">
-        <div class="card">
-            {% if let Some(Profile {did, display_name}) = profile %}
-            <form action="/logout" method="get" class="session-form">
-                <div>
-                    Hi,
-                    {% if let Some(display_name) = display_name %}
-                    <strong>{{display_name}}</strong>
-                    {% else %}
-                    <strong>friend</strong>
-                    {% endif %}. What's
-                    your status today??
-                </div>
-                <div>
-                    <button type="submit">Log out</button>
-                </div>
-            </form>
-            {% else %}
-            <div class="session-form">
-                <form action="/login" method="post" class="login-form">
-                    <p>@</p>
-                    <input
-                        type="text"
-                        name="handle"
-                        placeholder="Enter your handle (eg alice.bsky.social)"
-                        required
-                    />
-                    <button type="submit">Log in</button>
-                </form>
-            </div>
-            {% endif %}
-
-
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <a href="/" class="logo">
+            <span>🛒</span>
+            <span>MERCATO</span>
+        </a>
+        
+        <div class="nav-links">
+            <a href="/" class="nav-item active">
+                <span>🏠</span>
+                <span>Home</span>
+            </a>
+            <a href="#" class="nav-item">
+                <span>🔍</span>
+                <span>Search</span>
+            </a>
+            <a href="#" class="nav-item">
+                <span>🔔</span>
+                <span>Notifications</span>
+            </a>
+            <a href="#" class="nav-item">
+                <span>👤</span>
+                <span>Profile</span>
+            </a>
+            <a href="#" class="nav-item">
+                <span>⚙️</span>
+                <span>Settings</span>
+            </a>
         </div>
 
         {% if profile.is_some() %}
-        <div class="card">
-            <h3>Post a Listing</h3>
-            <form id="listing-form" class="listing-form">
-                <input type="text" name="title" placeholder="What are you trading? (e.g. 1 hour of gardening)" required />
-                <textarea name="description" placeholder="Details..."></textarea>
-                <div style="display: flex; gap: 10px; align-items: center;">
-                    <label><input type="radio" name="role" value="maker" checked /> Maker (I have this)</label>
-                    <label><input type="radio" name="role" value="taker" /> Taker (I want this)</label>
+        <button class="btn-post" onclick="openModal()">
+            <span>➕</span>
+            <span>Post Listing</span>
+        </button>
+        {% endif %}
+
+        <div class="user-mini">
+            {% if let Some(Profile {did, display_name}) = profile %}
+            <div class="user-avatar"></div>
+            <div class="user-info">
+                <span class="user-name">{{ display_name.as_deref().unwrap_or("Friend") }}</span>
+                <span class="user-handle">{{ did }}</span>
+            </div>
+            {% else %}
+            <a href="/login-page" style="text-decoration: none; color: white;">Log In</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <header>
+            <h2>Home</h2>
+        </header>
+
+        {% if profile.is_some() %}
+        <div class="compose-area">
+            <form id="status-form" class="compose-form">
+                <div class="status-avatar">😊</div>
+                <div class="compose-main">
+                    <p style="color: var(--text-secondary); margin-bottom: 8px;">How are you feeling today?</p>
+                    <div class="status-grid">
+                        {% for status in status_options %}
+                        <button type="button" class="status-btn status-option {% if let Some(my_status) = my_status.as_ref() %} {%if &my_status.status == status %} selected {% endif %} {% endif %}" value="{{status}}">
+                            {{status}}
+                        </button>
+                        {% endfor %}
+                    </div>
                 </div>
-                <input type="text" name="price" placeholder="Price (optional, e.g. 10 EUR)" />
-                <input type="text" name="barter_for" placeholder="Barter for (optional, e.g. 2 eggs)" />
-                <button type="submit">Post Listing</button>
+            </form>
+        </div>
+        {% else %}
+        <div class="sidebar-card" style="margin: 16px;">
+            <h3>Join the Marketplace</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 12px;">Log in with your AT Protocol handle to post trade listings and status updates.</p>
+            <form action="/login" method="post" class="login-form">
+                <input type="text" name="handle" placeholder="eg. alice.bsky.social" required />
+                <button type="submit" class="btn-submit">Log in</button>
             </form>
         </div>
         {% endif %}
 
-        <form id= "status-form" class="status-options">
-            {% for status in status_options %}
-            <!-- TODO: update the selected element here on form submit -->
-            <button
-                    class="{% if let Some(my_status) = my_status.as_ref() %} {%if &my_status.status == status %} status-option selected {% else %} status-option {% endif %} {% else %} status-option  {%endif%} "
-                    name="status" value="{{status}}">
-                {{status}}
-            </button>
-
-            {% endfor %}
-        </form.status>
         <div id="statuscontainer">
+            <!-- Feed items injected here -->
+        </div>
+    </main>
+
+    <!-- Right Sidebar -->
+    <aside class="right-sidebar">
+        <div class="search-box">
+            <span>🔍</span>
+            Search Mercato
+        </div>
+        <div class="sidebar-card">
+            <h3>Mercato Proximity</h3>
+            <p style="color: var(--text-secondary); font-size: 0.9rem;">Find items and trades near you. Proximity features are currently in beta.</p>
+        </div>
+        <div class="sidebar-card">
+            <h3>Local Community</h3>
+            <p style="color: var(--text-secondary); font-size: 0.9rem;">Join 142 neighbors trading items and services today.</p>
+        </div>
+    </aside>
+
+    <!-- Modal for Listing -->
+    <div id="listing-modal" class="modal-overlay" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>New Listing</h3>
+                <button class="btn-close" onclick="closeModal()">×</button>
+            </div>
+            <div class="compose-area">
+                <form id="listing-form">
+                    <div style="margin-bottom: 15px;">
+                        <input type="text" name="title" class="compose-input" placeholder="What are you trading?" required style="font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;" />
+                    </div>
+                    <textarea name="description" class="compose-input" placeholder="Describe your item or service..." style="font-size: 1rem; min-height: 100px;"></textarea>
+                    
+                    <div style="display: flex; gap: 20px; align-items: center; margin: 15px 0;">
+                        <label style="cursor: pointer;"><input type="radio" name="role" value="maker" checked /> Maker (Offer)</label>
+                        <label style="cursor: pointer;"><input type="radio" name="role" value="taker" /> Taker (Request)</label>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                        <input type="text" name="price" placeholder="Price (e.g. 10€)" style="background: rgba(255,255,255,0.05); border: none; padding: 10px; color: white; border-radius: 8px;" />
+                        <input type="text" name="barter_for" placeholder="Barter for (e.g. eggs)" style="background: rgba(255,255,255,0.05); border: none; padding: 10px; color: white; border-radius: 8px;" />
+                    </div>
+
+                    <div style="margin-bottom: 15px;">
+                        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 4px;">Location</p>
+                        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px;">
+                            <input type="text" name="location_name" placeholder="City / Neighborhood" style="background: rgba(255,255,255,0.05); border: none; padding: 10px; color: white; border-radius: 8px;" />
+                            <input type="text" name="lat" placeholder="Lat" style="background: rgba(255,255,255,0.05); border: none; padding: 10px; color: white; border-radius: 8px;" />
+                            <input type="text" name="lng" placeholder="Lng" style="background: rgba(255,255,255,0.05); border: none; padding: 10px; color: white; border-radius: 8px;" />
+                        </div>
+                    </div>
+
+                    <div class="compose-footer">
+                        <div class="compose-tools">
+                            <span>📷</span>
+                            <span>📍</span>
+                            <span>🏷️</span>
+                        </div>
+                        <button type="submit" class="btn-submit">Post Listing</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 </div>
 {%endblock content%}
 
 {%block js%}
-<!-- Client-side JavaScript code for the app. -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js" integrity="sha512-bLT0Qm9VnAYZDflyKcBaQ2gg0hSYNQrJ8RilYldYQ1FxQYoCLtUjuuRuZo+fjqhx/qtq/1itJ0C2ejDxltZVFg==" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 <script type="text/javascript">
-// Initial statuses data
 const initialStatuses = {{ self.recent_statuses_json()|safe }};
 const initialListings = {{ self.recent_listings_json()|safe }};
 
-// Combine and sort interleaved timeline
 let timeline = [...initialStatuses.map(s => ({...s, type: 'status'})), ...initialListings.map(l => ({...l, type: 'listing'}))];
 timeline.sort((a, b) => new Date(b.created_at || b.createdAt) - new Date(a.created_at || a.createdAt));
 
-let currentWebSocket = null;
-let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 10;
-const INITIAL_RECONNECT_DELAY = 1000; // 1 second
-
-// TODO: use to update hightlighted status on event updating
-//       status for current user
 {% if let Some(Profile {did, display_name}) = profile %}
 const did = "{{did.to_string()}}";
 {% else %}
 const did = null;
 {% endif %}
 
-let hostname = window.location.host;
+function openModal() {
+    $('#listing-modal').css('display', 'flex');
+}
 
-// Function to render a status element
+function closeModal(e) {
+    $('#listing-modal').css('display', 'none');
+}
+
 function renderStatus(data) {
-    let id = data.uri.replaceAll("/", "_").replaceAll(":", "_").replaceAll(".", "_");
-    console.log("normalized id ::   " + id);
+    let id = "status_" + data.uri.replaceAll("/", "_").replaceAll(":", "_").replaceAll(".", "_");
+    if ($("#" + id).length > 0) return;
 
-    let statusWrapper = null;
-    let preexisting = $("#" + id);
-
-    let updating_existing = false;
-
-    if (preexisting.length == 0) {
-        statusWrapper = $('<div>', {
-            class: "status-line tooltip",
-            id: id
-        });
-    } else {
-        preexisting.empty();
-        statusWrapper = preexisting;
-        updating_existing = true;
-    }
-
-    let status = $('<div>', {
-        class: "status",
-        text: data.status
-    });
-
-    let desc = $('<div>', {
-        class: "desc",
-    });
-    let author = $('<a>', {
-        class: "author",
-        href: "https://bsky.app/profile/" + data.author_did,
-        text: data.handle ? data.handle : data.author_did
-    });
-    desc.append(author);
-    desc.append(document.createTextNode(" is feeling " + data.status));
+    let dateStr = data.created_at ? new Date(data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Now";
     
-    // Format the date if it exists
-    let dateStr = data.created_at ? new Date(data.created_at).toLocaleString() : "";
-    if (dateStr) {
-        let timeSpan = $('<span>', {
-            style: "color: #888; font-size: 0.9em; margin-left: 8px;",
-            text: "on " + dateStr
-        });
-        desc.append(timeSpan);
-    }
-    let tooltip = $('<div>', { class: "tooltiptext"});
-    if (data.created_via_this_app) {
-        tooltip.append(document.createTextNode("[created via this app]"));
-    }
-    if (data.seen_on_jetstream) {
-        if (data.created_via_this_app) {
-            tooltip.append($('<br>'));
-        }
-        tooltip.append(document.createTextNode("[observed via jetstream ✅]"));
-    }
-
-    statusWrapper.append(status);
-    statusWrapper.append(desc);
-    statusWrapper.append(tooltip);
-
-    if (!updating_existing) {
-        $("#statuscontainer").prepend(statusWrapper);
-    }
+    let html = `
+        <div class="status-line" id="${id}">
+            <div class="status-avatar">${data.status}</div>
+            <div class="status-content">
+                <div class="status-header">
+                    <a href="https://bsky.app/profile/${data.author_did}" class="author">${data.handle || data.author_did.slice(0, 10) + '...'}</a>
+                    <span class="handle-time">· ${dateStr}</span>
+                </div>
+                <div class="status-text">${data.handle || "Somebody"} is feeling <strong>${data.status}</strong> right now.</div>
+            </div>
+        </div>
+    `;
+    $("#statuscontainer").prepend(html);
 }
 
 function renderListing(data) {
     let id = "listing_" + data.uri.replaceAll("/", "_").replaceAll(":", "_").replaceAll(".", "_");
-    let listingWrapper = null;
-    let preexisting = $("#" + id);
-    let updating_existing = false;
+    if ($("#" + id).length > 0) return;
 
-    if (preexisting.length == 0) {
-        listingWrapper = $('<div>', {
-            class: "status-line listing-line tooltip",
-            id: id,
-            style: "border-left: 4px solid #f39c12;" // give listings a distinct look
-        });
-    } else {
-        preexisting.empty();
-        listingWrapper = preexisting;
-        updating_existing = true;
-    }
-
-    let icon = $('<div>', { class: "status", text: data.role === 'maker' ? "📦" : "🔍" });
-    let desc = $('<div>', { class: "desc" });
-    let author = $('<a>', {
-        class: "author",
-        href: "https://bsky.app/profile/" + data.authorDid,
-        text: data.handle ? data.handle : data.authorDid
-    });
+    let dateStr = data.createdAt ? new Date(data.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Now";
+    let badgeClass = data.role === 'maker' ? 'badge-maker' : 'badge-taker';
+    let roleText = data.role === 'maker' ? 'OFFERING' : 'LOOKING FOR';
     
-    desc.append(author);
-    desc.append(document.createTextNode(" " + (data.role === 'maker' ? "is offering " : "is looking for ") + "\"" + data.title + "\""));
-    
-    if (data.price || data.barterFor) {
-        let tradeInfo = $('<div>', { style: "font-size: 0.9em; margin-top: 4px; color: #555;" });
-        if (data.price) tradeInfo.append($('<span>', { text: "Price: " + data.price + " " }));
-        if (data.barterFor) tradeInfo.append($('<span>', { text: "Trade for: " + data.barterFor }));
-        desc.append(tradeInfo);
-    }
-
-    let dateStr = data.createdAt ? new Date(data.createdAt).toLocaleString() : "";
-    if (dateStr) {
-        let timeSpan = $('<span>', {
-            style: "color: #888; font-size: 0.8em; margin-left: 8px;",
-            text: "on " + dateStr
-        });
-        desc.append(timeSpan);
-    }
-
-    listingWrapper.append(icon);
-    listingWrapper.append(desc);
-
-    if (!updating_existing) {
-        $("#statuscontainer").prepend(listingWrapper);
-    }
+    let html = `
+        <div class="status-line" id="${id}">
+            <div class="status-avatar">${data.role === 'maker' ? '📦' : '🔍'}</div>
+            <div class="status-content">
+                <div class="status-header">
+                    <a href="https://bsky.app/profile/${data.authorDid}" class="author">${data.handle || data.authorDid.slice(0, 10) + '...'}</a>
+                    <span class="handle-time">· ${dateStr}</span>
+                </div>
+                <div class="status-text">
+                    <div class="listing-badge ${badgeClass}">${roleText}</div>
+                    <div style="font-weight: 700; margin-top: 4px; font-size: 1.1rem;">${data.title}</div>
+                    <div style="margin-top: 4px; color: var(--text-secondary);">${data.description || ""}</div>
+                    ${(data.price || data.barterFor) ? `
+                        <div class="trade-details">
+                            ${data.price ? `<div>💰 <strong>Price:</strong> ${data.price}</div>` : ""}
+                            ${data.barterFor ? `<div>🤝 <strong>Trade:</strong> ${data.barterFor}</div>` : ""}
+                        </div>
+                    ` : ""}
+                    ${data.geo ? `
+                        <div style="margin-top: 8px; font-size: 0.8rem; color: var(--accent-color);">
+                            📍 ${data.geo.name || "Local Area"}
+                        </div>
+                    ` : ""}
+                </div>
+            </div>
+        </div>
+    `;
+    $("#statuscontainer").prepend(html);
 }
 
-// Initialize status container with initial data
 $(document).ready(function() {
-    // Render sorted timeline
     timeline.reverse().forEach(function(item) {
         if (item.type === 'status' || (!item.type && item.status)) {
             renderStatus(item);
@@ -234,129 +246,77 @@ $(document).ready(function() {
     });
 });
 
+// Status selection
+$('.status-btn').on('click', function() {
+    let status = $(this).val();
+    $('.status-btn').removeClass('selected');
+    $(this).addClass('selected');
+    
+    $.ajax({
+        type: "POST",
+        url: "/status",
+        data: JSON.stringify({ status: status }),
+        contentType: "application/json",
+        dataType: "json",
+        success: function(data) {
+            renderStatus(data);
+        }
+    });
+});
+
+// Listing submission
 $('#listing-form').on('submit', function(e) {
     e.preventDefault();
-    let formData = {};
+    let rawData = {};
     $(this).serializeArray().forEach(item => {
-        if (item.value) formData[item.name] = item.value;
+        if (item.value) rawData[item.name] = item.value;
     });
+
+    let formData = {
+        title: rawData.title,
+        description: rawData.description,
+        role: rawData.role,
+        price: rawData.price,
+        barter_for: rawData.barter_for,
+        latitude: rawData.lat,
+        longitude: rawData.lng,
+        location_name: rawData.location_name
+    };
 
     $.ajax({
         type: "POST",
         url: "/listing",
         data: JSON.stringify(formData),
-        contentType: "application/json; charset=utf-8",
+        contentType: "application/json",
         dataType: "json",
         success: function(data) {
-            console.log("Listing created", data);
             renderListing(data);
+            closeModal();
             $('#listing-form')[0].reset();
-        },
-        error: function(xhr, status, error) {
-            console.error("Listing creation failed:", error);
-            alert("Failed to create listing. Please try again.");
         }
     });
 });
 
-$('#status-form').on('submit',function(e){
-    e.preventDefault();
-    let submitter = e.originalEvent.submitter;
-    console.log("event data");
-    console.log(submitter);
-
-    let toSend = { "status": submitter.innerText };
-
-    // Update button selection immediately for better UX
-    $('.status-option').removeClass('selected');
-    $(submitter).addClass('selected');
-
-    $.ajax({
-        type     : "POST",
-        cache    : false,
-        url      : "/status",
-        data     : JSON.stringify(toSend),
-        contentType: "application/json; charset=utf-8",
-        dataType : "json",
-        success  : function(data) {
-            console.log("onsubmit success", data);
-            // Immediately render the status in the UI
-            renderStatus(data);
-        },
-        error: function(xhr, status, error) {
-            console.error("Status update failed:", error);
-            // Revert button selection on error
-            $('.status-option').removeClass('selected');
-            // TODO: Re-select the previous status if known
-        }
-    });
-
-});
-
+// WebSocket logic
 function join() {
-  // If we are running via wrangler dev, use ws:
-  const wss = document.location.protocol === "http:" ? "ws://" : "wss://";
-  let ws = new WebSocket(wss + hostname + "/websocket");
-  let rejoined = false;
-  let startTime = Date.now();
+    const wss = document.location.protocol === "http:" ? "ws://" : "wss://";
+    let ws = new WebSocket(wss + window.location.host + "/websocket");
+    
+    ws.addEventListener("message", event => {
+        let data = JSON.parse(event.data);
+        if (!data.error) {
+            if (data.$type === 'listing') {
+                renderListing(data);
+            } else {
+                renderStatus(data);
+            }
+        }
+    });
 
-  let rejoin = async () => {
-    if (!rejoined) {
-      rejoined = true;
-      currentWebSocket = null;
-
-      // Check if we've exceeded max reconnect attempts
-      if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-        console.log("Max reconnection attempts reached. Stopping reconnection attempts.");
-        return;
-      }
-
-      // Calculate exponential backoff delay
-      const delay = Math.min(INITIAL_RECONNECT_DELAY * Math.pow(2, reconnectAttempts), 30000); // Max 30 seconds
-      reconnectAttempts++;
-      
-      console.log(`Reconnection attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
-      
-      // Wait for the calculated delay
-      await new Promise(resolve => setTimeout(resolve, delay));
-
-      // OK, reconnect now!
-      join();
-    }
-  }
-
-  ws.addEventListener("open", event => {
-    currentWebSocket = ws;
-    console.log("WebSocket connected successfully");
-  });
-
-  ws.addEventListener("message", event => {
-    console.log("websocket msg raw: " + JSON.stringify(event))
-    let data = JSON.parse(event.data);
-    console.log("websocket msg data: " + JSON.stringify(data))
-
-    if (data.error) {
-      console.log("error from backend", data)
-    } else {
-      if (data.$type === 'listing') {
-          renderListing(data);
-      } else {
-          renderStatus(data);
-      }
-    }
-  });
-
-  ws.addEventListener("close", event => {
-    console.log("WebSocket closed, reconnecting:", event.code, event.reason);
-    rejoin();
-  });
-  ws.addEventListener("error", event => {
-    console.log("WebSocket error, reconnecting:", event);
-    rejoin();
-  });
+    ws.addEventListener("close", () => {
+        setTimeout(join, 2000);
+    });
 }
-
-
 join();
 </script>
 {%endblock js%}

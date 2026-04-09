@@ -1,0 +1,20 @@
+{
+  "lexicon": 1,
+  "id": "xyz.mercato.comment",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A comment on a Mercato listing.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["content", "subject", "createdAt"],
+        "properties": {
+          "content": { "type": "string", "maxLength": 1000 },
+          "subject": { "type": "string", "description": "The URI of the listing being commented on" },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

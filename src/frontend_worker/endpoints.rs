@@ -13,7 +13,7 @@ use anyhow::Context as _;
 use atrium_api::types::string::Handle;
 use atrium_oauth::{CallbackParams, OAuthClientMetadata};
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     response::Redirect,
 };
 use axum::{Form, Json};
@@ -233,9 +233,9 @@ pub struct ListingForm {
     pub role: String,
     pub price: Option<String>,
     pub barter_for: Option<String>,
-    pub lat: Option<f64>,
-    pub lng: Option<f64>,
-    pub city: Option<String>,
+    pub latitude: Option<String>,
+    pub longitude: Option<String>,
+    pub location_name: Option<String>,
 }
 
 #[worker::send]
@@ -269,12 +269,15 @@ pub async fn create_listing(
         role: form.role.clone(),
         price: form.price.clone(),
         barter_for: form.barter_for.clone(),
-        location: form.lat.and_then(|lat| form.lng.map(|lng| crate::types::lexicons::xyz::mercato::listing::Location {
-            lat,
-            lng,
-            fuzz: None,
-            city: form.city.clone(),
-        })),
+        geo: match (&form.latitude, &form.longitude) {
+            (Some(lat), Some(lng)) => Some(crate::types::lexicons::xyz::mercato::listing::Geo {
+                latitude: lat.clone(),
+                longitude: lng.clone(),
+                name: form.location_name.clone(),
+                altitude: None,
+            }),
+            _ => None,
+        },
         images: None, // TODO support images
         created_at: atrium_api::types::string::Datetime::now(),
     };
@@ -289,10 +292,10 @@ pub async fn create_listing(
         role: form.role,
         price: form.price,
         barter_for: form.barter_for,
-        lat: form.lat,
-        lng: form.lng,
-        fuzz: None,
-        city: form.city,
+        latitude: form.latitude,
+        longitude: form.longitude,
+        altitude: None,
+        location_name: form.location_name,
         created_at: chrono::Utc::now(),
         indexed_at: chrono::Utc::now(),
     };
@@ -314,6 +317,126 @@ pub async fn create_listing(
     }
 
     Ok(Json(return_val))
+}
+
+#[worker::send]
+pub async fn view_listing(
+    State(AppState {
+        oauth,
+        status_db,
+        did_resolver,
+        ..
+    }): State<AppState>,
+    Path((did, rkey)): Path<(String, String)>,
+    session: tower_sessions::Session,
+) -> Result<crate::types::templates::ListingTemplate, AppError> {
+    let listing_from_db = status_db.get_listing_by_did_rkey(&did, &rkey).await?
+        .ok_or_else(|| anyhow::anyhow!("Listing not found"))?;
+
+    let mut listing_val = serde_json::to_value(&listing_from_db).unwrap();
+    if let Some(obj) = listing_val.as_object_mut() {
+        let handle = did_resolver.resolve_handle_for_did(&listing_from_db.author_did).await;
+        obj.insert("handle".to_string(), serde_json::to_value(handle).unwrap());
+        // Ensure uri is present for commenting
+        obj.insert("uri".to_string(), serde_json::Value::String(listing_from_db.uri.clone()));
+    }
+
+    // Load comments
+    let comments = status_db.load_comments_for_listing(&listing_from_db.uri).await?;
+    let mut resolved_comments = Vec::new();
+    for mut c in comments.into_iter() {
+        if let Some(obj) = c.as_object_mut() {
+            if let Some(author) = obj.get("authorDid").and_then(|v| v.as_str()) {
+                let handle = did_resolver.resolve_handle_for_did(&author.parse().unwrap()).await;
+                obj.insert("handle".to_string(), serde_json::to_value(handle).unwrap());
+            }
+        }
+        resolved_comments.push(c);
+    }
+    if let Some(obj) = listing_val.as_object_mut() {
+        obj.insert("comments".to_string(), serde_json::to_value(resolved_comments).unwrap());
+    }
+
+    let profile_did: Option<String> = session.get("did").await?;
+    let profile = if let Some(did) = profile_did {
+        let agent = oauth.restore_session(&did.parse().unwrap()).await?;
+        let bsky = agent.bsky_profile().await?;
+        Some(Profile {
+            did: did.to_string(),
+            display_name: bsky.display_name.or(Some(bsky.handle.to_string())),
+        })
+    } else {
+        None
+    };
+
+    Ok(crate::types::templates::ListingTemplate {
+        profile,
+        listing: listing_val,
+    })
+}
+
+#[derive(Deserialize)]
+pub struct CommentForm {
+    pub content: String,
+}
+
+#[worker::send]
+pub async fn post_comment(
+    State(AppState {
+        oauth,
+        status_db,
+        durable_object,
+        ..
+    }): State<AppState>,
+    Path((did, rkey)): Path<(String, String)>,
+    session: tower_sessions::Session,
+    Json(form): Json<CommentForm>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let auth_did = session.get("did").await?.ok_or(AppError::NoSessionAuth)?;
+    let agent = oauth.restore_session(&auth_did).await?;
+
+    let subject_uri = format!("at://{}/xyz.mercato.listing/{}", did, rkey);
+    
+    let comment_record = crate::types::lexicons::xyz::mercato::comment::RecordData {
+        content: form.content.clone(),
+        subject: subject_uri.clone(),
+        created_at: atrium_api::types::string::Datetime::now(),
+    };
+
+    let record_wrapper: crate::types::lexicons::record::KnownRecord = comment_record.clone().into();
+
+    let record = agent
+        .inner_api() // assuming I added/have access to inner atrium agent api
+        .api
+        .com
+        .atproto
+        .repo
+        .create_record(
+            atrium_api::com::atproto::repo::create_record::InputData {
+                collection: "xyz.mercato.comment".parse().unwrap(),
+                repo: auth_did.clone().into(),
+                rkey: None,
+                record: record_wrapper.into(),
+                swap_commit: None,
+                validate: None,
+            }
+            .into(),
+        )
+        .await
+        .context("publish comment via agent")?;
+
+    status_db.save_comment(&comment_record, record.data.uri.clone(), auth_did.to_string(), false, true).await?;
+
+    // Broadcast to WebSocket
+    let mut broadcast_val = serde_json::to_value(&comment_record).unwrap();
+    if let Some(obj) = broadcast_val.as_object_mut() {
+        obj.insert("uri".to_string(), serde_json::Value::String(record.data.uri));
+        obj.insert("authorDid".to_string(), serde_json::Value::String(auth_did.to_string()));
+        obj.insert("$type".to_string(), serde_json::Value::String("comment".to_string()));
+    }
+    durable_object.broadcast(broadcast_val.clone()).await?;
+
+    Ok(Json(broadcast_val))
 }
 
 #[worker::send]

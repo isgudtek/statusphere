@@ -7,6 +7,8 @@ pub enum KnownRecord {
     LexiconsXyzStatusphereStatus(Box<crate::types::lexicons::xyz::statusphere::status::Record>),
     #[serde(rename = "xyz.mercato.listing")]
     LexiconsXyzMercatoListing(Box<crate::types::lexicons::xyz::mercato::listing::Record>),
+    #[serde(rename = "xyz.mercato.comment")]
+    LexiconsXyzMercatoComment(Box<crate::types::lexicons::xyz::mercato::comment::Record>),
 }
 impl From<crate::types::lexicons::xyz::statusphere::status::Record> for KnownRecord {
     fn from(record: crate::types::lexicons::xyz::statusphere::status::Record) -> Self {
@@ -26,6 +28,16 @@ impl From<crate::types::lexicons::xyz::mercato::listing::Record> for KnownRecord
 impl From<crate::types::lexicons::xyz::mercato::listing::RecordData> for KnownRecord {
     fn from(record_data: crate::types::lexicons::xyz::mercato::listing::RecordData) -> Self {
         KnownRecord::LexiconsXyzMercatoListing(Box::new(record_data.into()))
+    }
+}
+impl From<crate::types::lexicons::xyz::mercato::comment::Record> for KnownRecord {
+    fn from(record: crate::types::lexicons::xyz::mercato::comment::Record) -> Self {
+        KnownRecord::LexiconsXyzMercatoComment(Box::new(record))
+    }
+}
+impl From<crate::types::lexicons::xyz::mercato::comment::RecordData> for KnownRecord {
+    fn from(record_data: crate::types::lexicons::xyz::mercato::comment::RecordData) -> Self {
+        KnownRecord::LexiconsXyzMercatoComment(Box::new(record_data.into()))
     }
 }
 impl From<KnownRecord> for atrium_api::types::Unknown {

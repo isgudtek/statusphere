@@ -30,6 +30,10 @@ impl Agent {
             inner: AtriumAgent::new(session),
         }
     }
+
+    pub fn inner_api(&self) -> &AtriumAgent<oauth::SessionType> {
+        &self.inner
+    }
 }
 
 impl Agent {
@@ -146,7 +150,7 @@ impl Agent {
         base_url: &str,
     ) -> Result<create_record::OutputData, AppError> {
         let title = listing_data.title.clone();
-        let record_wrapper: KnownRecord = listing_data.into();
+        let record_wrapper: KnownRecord = listing_data.clone().into();
 
         // 1. Create the xyz.mercato.listing record
         let record = self
@@ -171,16 +175,21 @@ impl Agent {
 
         // 2. Post a notification to bsky timeline
         // Link format: https://<base_url>/listing/<repo>/<rkey>
-        // the record.data.uri is like at://did:abc/xyz.mercato.listing/tid123
         let uri = &record.data.uri;
         let parts: Vec<&str> = uri.split('/').collect();
         let rkey = parts.last().unwrap_or(&"");
         
         let link = format!("{}/listing/{}/{}", base_url, self.did.as_str(), rkey);
         
+        let prefix = if listing_data.role == "maker" {
+            "OFFERED"
+        } else {
+            "WANTED"
+        };
+
         let bsky_post = atrium_api::app::bsky::feed::post::Record::from(atrium_api::app::bsky::feed::post::RecordData {
             created_at: Datetime::now(),
-            text: format!("New item on Mercato: {} 🏷️\n\nCheck it out here: {}", title, link),
+            text: format!("New item {} on Mercato: {} 🏷️\n\nView details: {}", prefix, title, link),
             embed: None,
             entities: None,
             facets: None,

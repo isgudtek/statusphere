@@ -13,10 +13,11 @@ pub struct Listing {
     pub price: Option<String>,
     #[serde(rename = "barterFor")]
     pub barter_for: Option<String>,
-    pub lat: Option<f64>,
-    pub lng: Option<f64>,
-    pub fuzz: Option<i32>,
-    pub city: Option<String>,
+    pub latitude: Option<String>,
+    pub longitude: Option<String>,
+    pub altitude: Option<String>,
+    #[serde(rename = "locationName")]
+    pub location_name: Option<String>,
     #[serde(rename = "createdAt")]
     pub created_at: DateTime<Utc>,
     #[serde(rename = "indexedAt")]
@@ -34,10 +35,11 @@ pub struct ListingFromDb {
     pub price: Option<String>,
     #[serde(rename = "barterFor")]
     pub barter_for: Option<String>,
-    pub lat: Option<f64>,
-    pub lng: Option<f64>,
-    pub fuzz: Option<i32>,
-    pub city: Option<String>,
+    pub latitude: Option<String>,
+    pub longitude: Option<String>,
+    pub altitude: Option<String>,
+    #[serde(rename = "locationName")]
+    pub location_name: Option<String>,
     #[serde(rename = "createdAt")]
     pub created_at: DateTime<Utc>,
     #[serde(rename = "indexedAt")]

@@ -2,7 +2,9 @@
 pub mod listing;
 
 use atrium_api::types::Collection;
+#[derive(Debug)]
 pub struct Listing;
 impl Collection for Listing {
     const NSID: &'static str = "xyz.mercato.listing";
+    type Record = listing::Record;
 }

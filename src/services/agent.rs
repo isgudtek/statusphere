@@ -176,7 +176,7 @@ impl Agent {
         let parts: Vec<&str> = uri.split('/').collect();
         let rkey = parts.last().unwrap_or(&"");
         
-        let link = format!("{}/listing/{}/{}", base_url, self.did, rkey);
+        let link = format!("{}/listing/{}/{}", base_url, self.did.as_str(), rkey);
         
         let bsky_post = atrium_api::app::bsky::feed::post::Record::from(atrium_api::app::bsky::feed::post::RecordData {
             created_at: Datetime::now(),

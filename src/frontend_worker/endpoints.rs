@@ -1,12 +1,11 @@
 use crate::frontend_worker::state::ScheduledEventState;
 use crate::services::jetstream::handle_jetstream_event;
 use crate::types::jetstream;
-use crate::types::lexicons::xyz;
 use crate::types::status::STATUS_OPTIONS;
 use crate::{types::errors::AppError, types::templates::HomeTemplate};
 use crate::{
     types::status::{Status, StatusWithHandle},
-    types::listing::{Listing, ListingFromDb},
+    types::listing::Listing,
     types::templates::Profile,
 };
 use axum_extra::extract::Host;
@@ -217,7 +216,7 @@ pub async fn status(
         .context("saving status")?;
 
     // Broadcast to WebSocket clients
-    durable_object.broadcast(status_from_db.clone()).await?;
+    durable_object.broadcast(serde_json::to_value(status_from_db.clone()).context("serialize status")?).await?;
 
     // Convert to StatusWithHandle and return as JSON
     let mut status_with_handle = StatusWithHandle::from(status_from_db);
@@ -335,7 +334,7 @@ pub async fn admin_publish_jetstream_event(
     // deliberately only implementing basic authorization because it's not the
     // focus of this post - do not use this in production apps
     TypedHeader(auth): TypedHeader<Authorization<headers::authorization::Basic>>,
-    Json(status): Json<jetstream::Event<xyz::statusphere::status::RecordData>>,
+    Json(status): Json<jetstream::Event<serde_json::Value>>,
 ) -> Result<(), AppError> {
     // TODO: re-deploy with this disabled in some manner
     // DO NOT USE THIS IN PRODUCTION

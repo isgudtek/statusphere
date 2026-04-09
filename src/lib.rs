@@ -80,3 +80,4 @@ async fn scheduled(_s: ScheduledEvent, env: Env, _ctx: ScheduleContext) {
         Err(e) => console_error!("error on scheduled jetstream reader, {}", e),
     }
 }
+

@@ -116,6 +116,16 @@ function renderStatus(data) {
     });
     desc.append(author);
     desc.append(document.createTextNode(" is feeling " + data.status));
+    
+    // Format the date if it exists
+    let dateStr = data.created_at ? new Date(data.created_at).toLocaleString() : "";
+    if (dateStr) {
+        let timeSpan = $('<span>', {
+            style: "color: #888; font-size: 0.9em; margin-left: 8px;",
+            text: "on " + dateStr
+        });
+        desc.append(timeSpan);
+    }
     let tooltip = $('<div>', { class: "tooltiptext"});
     if (data.created_via_this_app) {
         tooltip.append(document.createTextNode("[created via this app]"));

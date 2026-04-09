@@ -8,6 +8,7 @@ use atrium_api::app::bsky::actor::defs::ProfileViewDetailedData;
 use atrium_api::app::bsky::actor::get_profile;
 use atrium_api::com::atproto::repo::{create_record, list_records};
 use atrium_api::types::TryFromUnknown as _;
+use atrium_api::types::TryIntoUnknown as _;
 use atrium_api::{
     agent::Agent as AtriumAgent,
     types::{
@@ -66,11 +67,11 @@ impl Agent {
 
     pub async fn create_status(
         &self,
-        status: String,
+        req_status: String,
     ) -> Result<create_record::OutputData, AppError> {
         let status: KnownRecord = crate::types::lexicons::xyz::statusphere::status::RecordData {
             created_at: Datetime::now(),
-            status,
+            status: req_status.clone(),
         }
         .into();
 
@@ -96,6 +97,42 @@ impl Agent {
             )
             .await
             .context("publish status via agent")?;
+
+        // 2. Create the generic bsky feed post so it shows up in their timeline
+        let bsky_post = atrium_api::app::bsky::feed::post::Record::from(atrium_api::app::bsky::feed::post::RecordData {
+            created_at: Datetime::now(),
+            text: format!("I am currently feeling {} (via statusphere!)", req_status),
+            embed: None,
+            entities: None,
+            facets: None,
+            labels: None,
+            langs: None,
+            reply: None,
+            tags: None,
+        });
+
+        let post_record_unknown = atrium_api::types::TryIntoUnknown::try_into_unknown(&bsky_post).unwrap();
+
+        let _bsky_record = self
+            .inner
+            .api
+            .com
+            .atproto
+            .repo
+            .create_record(
+                create_record::InputData {
+                    collection: "app.bsky.feed.post".parse().unwrap(),
+                    repo: self.did.clone().into(),
+                    rkey: None,
+                    record: post_record_unknown,
+                    swap_commit: None,
+                    validate: None,
+                }
+                .into(),
+            )
+            .await
+            // it's okay if this fails we don't need to block returning the statusphere record
+            .context("publish bsky feed post via agent");
 
         Ok(record.data)
     }

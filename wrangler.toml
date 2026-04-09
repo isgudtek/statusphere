@@ -33,7 +33,7 @@ crons = [ "*/1 * * * *" ]
 [assets]
 directory = "./public"
 binding = "ASSETS"
-not_found_handling = "single-page-application"
+not_found_handling = "none"
 
 
 # used for live updates via websocket

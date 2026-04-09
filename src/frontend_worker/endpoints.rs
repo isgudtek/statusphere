@@ -527,3 +527,56 @@ pub async fn admin_publish_jetstream_event(
 
     Ok(())
 }
+
+#[worker::send]
+pub async fn discover(
+    State(AppState { oauth, .. }): State<AppState>,
+    session: tower_sessions::Session,
+) -> Result<crate::types::templates::DiscoverTemplate, AppError> {
+    let profile_did: Option<String> = session.get("did").await?;
+    let profile = if let Some(did) = profile_did {
+        if let Ok(agent) = oauth.restore_session(&did.parse().unwrap()).await {
+            if let Ok(bsky) = agent.bsky_profile().await {
+                Some(Profile {
+                    did: did.to_string(),
+                    display_name: bsky.display_name.or(Some(bsky.handle.to_string())),
+                })
+            } else { None }
+        } else { None }
+    } else {
+        None
+    };
+
+    Ok(crate::types::templates::DiscoverTemplate { profile })
+}
+
+#[derive(Deserialize)]
+pub struct SearchQuery {
+    pub min_lat: f64,
+    pub max_lat: f64,
+    pub min_lng: f64,
+    pub max_lng: f64,
+    pub q: Option<String>,
+}
+
+#[worker::send]
+pub async fn api_search(
+    State(AppState { status_db, did_resolver, .. }): State<AppState>,
+    Query(query): Query<SearchQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let listings = status_db.search_listings(query.min_lat, query.max_lat, query.min_lng, query.max_lng, query.q).await?;
+    
+    let mut resolved = Vec::new();
+    for l in listings.into_iter() {
+        let mut val = serde_json::to_value(l).unwrap();
+        if let Some(obj) = val.as_object_mut() {
+            let author_did = obj.get("authorDid").and_then(|v| v.as_str()).unwrap().parse().unwrap();
+            let handle = did_resolver.resolve_handle_for_did(&author_did).await;
+            obj.insert("handle".to_string(), serde_json::to_value(handle).unwrap());
+            obj.insert("$type".to_string(), serde_json::Value::String("listing".to_string()));
+        }
+        resolved.push(val);
+    }
+    
+    Ok(Json(serde_json::to_value(resolved).unwrap()))
+}

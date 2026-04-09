@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div id="root">
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <a href="/" class="logo">
+            <span class="logo-icon">🛒</span>
+            <span class="logo-text">MERCATO</span>
+        </a>
+        
+        <div class="nav-links">
+            <a href="/" class="nav-item">
+                <span class="nav-icon">🏠</span>
+                <span class="nav-label">Home</span>
+            </a>
+            <a href="/discover" class="nav-item active">
+                <span class="nav-icon">🔍</span>
+                <span class="nav-label">Discover</span>
+            </a>
+            <a href="javascript:void(0)" class="nav-item">
+                <span class="nav-icon">👤</span>
+                <span class="nav-label">Profile</span>
+            </a>
+            <a href="javascript:void(0)" class="nav-item">
+                <span class="nav-icon">⚙️</span>
+                <span class="nav-label">Settings</span>
+            </a>
+        </div>
+
+        <div class="user-mini">
+            {% if let Some(Profile {did, display_name}) = profile %}
+            <div class="user-avatar-small" id="nav-avatar"></div>
+            <script>setTimeout(()=>loadAvatar("{{did}}", "#nav-avatar"), 100);</script>
+            <div class="user-info">
+                <span class="user-name">{{ display_name.as_deref().unwrap_or("Friend") }}</span>
+                <span class="user-handle">{{ did }}</span>
+            </div>
+            {% else %}
+            <a href="/login" style="text-decoration: none; color: var(--accent-color); font-weight: 700;">Log In</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content" style="padding: 0; display: flex; flex-direction: column;">
+        
+        <!-- Controls overlay on map or just above -->
+        <div class="discover-controls" style="padding: 15px 20px; background: var(--bg-card); display: flex; gap: 15px; border-bottom: 1px solid var(--border-color); z-index: 1000; align-items: center;">
+            <div style="flex: 1;">
+                <input type="text" id="search-input" placeholder="Search items around you..." style="width: 100%; padding: 10px; background: var(--bg-dark); border: 1px solid var(--border-color); color: white; border-radius: 8px; font-size: 1rem;">
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <label style="color: var(--text-secondary); font-size: 0.9rem;">Radius (km): <span id="radius-val">10</span></label>
+                <input type="range" id="radius-slider" min="1" max="100" value="10" style="width: 100px;">
+            </div>
+
+            <button id="btn-locate" style="padding: 10px 15px; background: var(--accent-color); color: var(--bg-dark); border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
+                📍 Find Me
+            </button>
+        </div>
+
+        <!-- The Map Container -->
+        <div id="map" style="flex: 1; width: 100%; min-height: 400px; background: #111;"></div>
+    </main>
+</div>
+{%endblock content%}
+
+{%block js%}
+<!-- Leaflet CSS & JS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+<style>
+/* Leaflet dark mode tweaks */
+.leaflet-layer,
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out,
+.leaflet-control-attribution {
+  filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
+.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+.leaflet-popup-content { margin: 12px; }
+</style>
+
+<script type="text/javascript">
+let map;
+let markers = [];
+let centerPoint = null;
+
+// Helper: Haversine distance in km
+function getDistance(lat1, lon1, lat2, lon2) {
+    let R = 6371; // km
+    let dLat = (lat2-lat1) * (Math.PI/180);
+    let dLon = (lon2-lon1) * (Math.PI/180); 
+    let a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * (Math.PI/180)) * Math.cos(lat2 * (Math.PI/180)) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2); 
+    let c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+    return R * c;
+}
+
+function initMap() {
+    // Default to Europe center
+    map = L.map('map').setView([48.8566, 2.3522], 5);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    map.on('moveend', fetchListings);
+    
+    // Try auto-locate immediately
+    locateUser();
+}
+
+function locateUser() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+            centerPoint = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            map.flyTo([centerPoint.lat, centerPoint.lng], 13);
+            fetchListings();
+        }, err => {
+            console.log("Locate error: ", err);
+            fetchListings();
+        });
+    }
+}
+
+function fetchListings() {
+    let bounds = map.getBounds();
+    let min_lat = bounds.getSouth();
+    let max_lat = bounds.getNorth();
+    let min_lng = bounds.getWest();
+    let max_lng = bounds.getEast();
+    
+    let q = $("#search-input").val().trim();
+    let radius = parseInt($("#radius-slider").val());
+    
+    let url = `/api/search?min_lat=${min_lat}&max_lat=${max_lat}&min_lng=${min_lng}&max_lng=${max_lng}`;
+    if (q) url += `&q=${encodeURIComponent(q)}`;
+    
+    $.getJSON(url, function(data) {
+        // Clear old markers
+        markers.forEach(m => map.removeLayer(m));
+        markers = [];
+        
+        data.forEach(item => {
+            if (!item.latitude || !item.longitude) return;
+            let iLat = parseFloat(item.latitude);
+            let iLng = parseFloat(item.longitude);
+            
+            // If user has a center point, filter by exact radius
+            if (centerPoint) {
+                let dist = getDistance(centerPoint.lat, centerPoint.lng, iLat, iLng);
+                if (dist > radius) return; // out of filter range
+            }
+            
+            // Build popup html
+            let avatarId = "popup-avatar-" + Math.random().toString(36).substr(2,9);
+            let roleLabel = item.role === 'maker' ? 'OFFERING' : 'LOOKING FOR';
+            
+            let popupContent = `
+                <div style="font-family: inherit; min-width: 200px;">
+                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                        <div id="${avatarId}" style="width: 24px; height: 24px; border-radius: 50%; background: #333;"></div>
+                        <a href="https://bsky.app/profile/${item.authorDid}" target="_blank" style="color: var(--accent-color); text-decoration: none; font-weight: bold; font-size: 0.9rem;">${item.handle || item.authorDid.substring(0,8)}</a>
+                    </div>
+                    <div style="font-size: 0.7rem; font-weight: bold; color: ${item.role==='maker'?'#4ade80':'#fbbf24'}; margin-bottom: 4px;">${roleLabel}</div>
+                    <a href="/listing/${item.authorDid}/${item.uri.split('/').pop()}" style="text-decoration: none; color: inherit;">
+                        <h4 style="margin: 0 0 5px 0;">${item.title}</h4>
+                        ${item.imageCid ? `<div style="height: 100px; background-image: url('https://cdn.bsky.app/img/feed_thumbnail/plain/${item.authorDid}/${item.imageCid}@jpeg'); background-size: cover; background-position: center; border-radius: 6px; margin-bottom: 8px;"></div>` : ''}
+                        ${item.price ? `<div style="margin-bottom: 4px;">💰 ${item.price}</div>` : ''}
+                    </a>
+                </div>
+            `;
+            
+            let marker = L.marker([iLat, iLng]).addTo(map);
+            marker.bindPopup(popupContent);
+            
+            marker.on('popupopen', function() {
+                loadAvatar(item.authorDid, "#" + avatarId);
+            });
+            
+            markers.push(marker);
+        });
+    });
+}
+
+$(document).ready(function() {
+    initMap();
+    
+    // Dynamic event listeners
+    $("#btn-locate").on("click", locateUser);
+    
+    $("#radius-slider").on("input", function() {
+        $("#radius-val").text($(this).val());
+    });
+    
+    $("#radius-slider").on("change", fetchListings); // Only fetch on drop
+    
+    // debounce search
+    let searchTimer;
+    $("#search-input").on("keyup", function() {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(fetchListings, 500);
+    });
+});
+</script>
+{%endblock js%}

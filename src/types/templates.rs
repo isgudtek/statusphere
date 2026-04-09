@@ -53,3 +53,16 @@ pub struct Profile {
     pub did: String,
     pub display_name: Option<String>,
 }
+
+#[derive(Template)]
+#[template(path = "discover.html")]
+pub struct DiscoverTemplate {
+    pub profile: Option<Profile>,
+}
+
+impl IntoResponse for DiscoverTemplate {
+    fn into_response(self) -> axum::response::Response {
+        let html = self.render().expect("template should be valid");
+        Html::from(html).into_response()
+    }
+}

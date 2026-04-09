@@ -254,4 +254,24 @@ impl StatusDb {
         .await?
         .results()
     }
+
+    pub async fn search_listings(&self, min_lat: f64, max_lat: f64, min_lng: f64, max_lng: f64, q: Option<String>) -> Result<Vec<ListingFromDb>> {
+        let q_param = q.clone().unwrap_or_default();
+        let has_q = q.is_some() && !q_param.is_empty();
+        let search_pattern = format!("%{}%", q_param);
+        
+        let query_str = if has_q {
+            "SELECT * FROM listings WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND CAST(latitude AS REAL) >= ?1 AND CAST(latitude AS REAL) <= ?2 AND CAST(longitude AS REAL) >= ?3 AND CAST(longitude AS REAL) <= ?4 AND (title LIKE ?5 OR description LIKE ?5) ORDER BY indexedAt DESC LIMIT 100"
+        } else {
+            "SELECT * FROM listings WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND CAST(latitude AS REAL) >= ?1 AND CAST(latitude AS REAL) <= ?2 AND CAST(longitude AS REAL) >= ?3 AND CAST(longitude AS REAL) <= ?4 ORDER BY indexedAt DESC LIMIT 100"
+        };
+
+        if has_q {
+            query!(&self.0, query_str, min_lat, max_lat, min_lng, max_lng, search_pattern)
+                .all().await?.results()
+        } else {
+            query!(&self.0, query_str, min_lat, max_lat, min_lng, max_lng)
+                .all().await?.results()
+        }
+    }
 }

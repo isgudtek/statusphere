@@ -14,11 +14,11 @@
                 <span>🏠</span>
                 <span>Home</span>
             </a>
-            <a href="#" class="nav-item">
+            <a href="javascript:void(0)" class="nav-item">
                 <span>🔍</span>
                 <span>Search</span>
             </a>
-            <a href="#" class="nav-item">
+            <a href="javascript:void(0)" class="nav-item">
                 <span>👤</span>
                 <span>Profile</span>
             </a>
@@ -26,7 +26,8 @@
 
         <div class="user-mini">
             {% if let Some(Profile {did, display_name}) = profile %}
-            <div class="user-avatar"></div>
+            <div class="user-avatar" id="nav-avatar"></div>
+            <script>setTimeout(()=>loadAvatar("{{did}}", "#nav-avatar"), 100);</script>
             <div class="user-info">
                 <span class="user-name">{{ display_name.as_deref().unwrap_or("Friend") }}</span>
                 <span class="user-handle">{{ did }}</span>
@@ -98,7 +99,7 @@ function renderListingDetail(l) {
         <div class="listing-badge ${badgeClass}" style="margin-bottom: 12px; margin-top: 20px;">${roleText}</div>
         <h1 style="font-size: 2.2rem; margin-bottom: 8px; font-weight: 900;">${l.title}</h1>
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 24px;">
-            <div class="user-avatar-small" style="width: 32px; height: 32px;"></div>
+            <div class="user-avatar-small" id="listing-author-avatar" style="width: 32px; height: 32px; border-radius: 50%;"></div>
             <a href="https://bsky.app/profile/${l.authorDid}" class="author" style="font-size: 1.1rem; color: var(--accent-color);">${l.handle || l.authorDid}</a>
         </div>
         <div style="font-size: 1.2rem; line-height: 1.6; margin-bottom: 32px; color: var(--text-primary); white-space: pre-wrap;">${l.description || "No description provided."}</div>
@@ -125,13 +126,15 @@ function renderListingDetail(l) {
         <div style="margin-top: 10px;"><a href="https://bsky.app/profile/${l.authorDid}" style="color: var(--primary-blue);">View Author Profile</a></div>
     `;
     $("#item-meta").html(meta);
+    loadAvatar(l.authorDid, "#listing-author-avatar");
 }
 
 function renderComment(c) {
     let dateStr = new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    let avatarId = "avatar-comment-" + Math.random().toString(36).substr(2,9);
     let html = `
         <div class="status-line" style="padding-left: 0;">
-            <div class="status-avatar" style="width: 32px; height: 32px; font-size: 1rem;">💬</div>
+            <div class="status-avatar" id="${avatarId}" style="width: 32px; height: 32px; font-size: 1rem; border-radius: 50%;">💬</div>
             <div class="status-content">
                 <div class="status-header">
                     <a href="https://bsky.app/profile/${c.authorDid}" class="author">${c.handle || c.authorDid.slice(0,10)+'...'}</a>
@@ -142,6 +145,7 @@ function renderComment(c) {
         </div>
     `;
     $("#comment-container").append(html);
+    loadAvatar(c.authorDid, "#" + avatarId);
 }
 
 $(document).ready(function() {

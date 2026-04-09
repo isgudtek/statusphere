@@ -14,15 +14,15 @@
                 <span class="nav-icon">🏠</span>
                 <span class="nav-label">Home</span>
             </a>
-            <a href="#" class="nav-item">
+            <a href="javascript:void(0)" class="nav-item">
                 <span class="nav-icon">🔍</span>
                 <span class="nav-label">Discover</span>
             </a>
-            <a href="#" class="nav-item">
+            <a href="javascript:void(0)" class="nav-item">
                 <span class="nav-icon">👤</span>
                 <span class="nav-label">Profile</span>
             </a>
-            <a href="#" class="nav-item">
+            <a href="javascript:void(0)" class="nav-item">
                 <span class="nav-icon">⚙️</span>
                 <span class="nav-label">Settings</span>
             </a>
@@ -36,7 +36,8 @@
 
         <div class="user-mini">
             {% if let Some(Profile {did, display_name}) = profile %}
-            <div class="user-avatar-small"></div>
+            <div class="user-avatar-small" id="nav-avatar"></div>
+            <script>setTimeout(()=>loadAvatar("{{did}}", "#nav-avatar"), 100);</script>
             <div class="user-info">
                 <span class="user-name">{{ display_name.as_deref().unwrap_or("Friend") }}</span>
                 <span class="user-handle">{{ did }}</span>
@@ -55,7 +56,8 @@
 
         {% if profile.is_some() %}
         <div class="quick-post-prompt" onclick="openModal()">
-            <div class="user-avatar-small"></div>
+            <div class="user-avatar-small" id="quick-avatar"></div>
+            <script>setTimeout(()=>loadAvatar("{{ profile.as_ref().unwrap().did }}", "#quick-avatar"), 100);</script>
             <div class="prompt-text">What are you offering today?</div>
             <div class="prompt-icons">
                 <span>📷</span>
@@ -195,7 +197,7 @@ function renderItem(item) {
     if (item.type === 'status') {
         html = `
             <div class="feed-item status-feed" id="${id}">
-                <div class="item-avatar">${item.status}</div>
+                <div class="item-avatar" id="avatar-${id}">${item.status}</div>
                 <div class="item-body">
                     <div class="item-header">
                         <span class="item-author">${item.handle || 'Anonymous'}</span>
@@ -211,7 +213,7 @@ function renderItem(item) {
         
         html = `
             <div class="feed-item listing-feed" id="${id}" onclick="window.location='/listing/${item.authorDid}/${item.uri.split('/').pop()}'">
-                <div class="item-avatar-subtle">👤</div>
+                <div class="item-avatar-subtle" id="avatar-${id}">👤</div>
                 <div class="item-body">
                     <div class="item-header">
                         <span class="item-author">${item.handle || item.authorDid.slice(0, 10)}</span>
@@ -239,6 +241,13 @@ function renderItem(item) {
         `;
     }
     $("#feed-container").prepend(html);
+    if (item.authorDid && item.type !== 'status') {
+        loadAvatar(item.authorDid, "#avatar-" + id);
+    } else if (item.author_did && item.type === 'status') {
+        loadAvatar(item.author_did, "#avatar-" + id);
+    } else if (item.authorDid && item.type === 'status') {
+        loadAvatar(item.authorDid, "#avatar-" + id);
+    }
 }
 
 $(document).ready(function() {
@@ -274,6 +283,11 @@ $('#photo-input').on('change', function() {
     const files = this.files;
     $('#photo-preview').empty();
     for(let f of files) {
+        if (f.size > 1000000) {
+            alert(`File ${f.name} is too large. Max size is 1MB to preserve ATProto limits.`);
+            this.value = "";
+            return;
+        }
         const reader = new FileReader();
         reader.onload = (e) => {
             $('#photo-preview').append(`<div class="preview-img" style="background-image: url(${e.target.result})"></div>`);

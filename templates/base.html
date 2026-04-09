@@ -5,12 +5,29 @@
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>MERCATO | Local Barter Marketplace</title>
-        <link href="css/style.css" rel="stylesheet" type="text/css" />
+        <link href="/css/style.css" rel="stylesheet" type="text/css" />
     </head>
 
     <body>
         {% block content %}{% endblock %}
     </body>
-
+    <script>
+    const avatarCache = {};
+    window.loadAvatar = function(did, elementSelector) {
+        if (!did) return;
+        if (avatarCache[did]) {
+            $(elementSelector).css('background-image', `url(${avatarCache[did]})`).text('');
+            return;
+        }
+        fetch("https://public.api.bsky.app/xrpc/app.bsky.actor.getProfile?actor=" + did)
+            .then(r => r.json())
+            .then(p => {
+                if (p.avatar) {
+                    avatarCache[did] = p.avatar;
+                    $(elementSelector).css('background-image', `url(${p.avatar})`).css('background-size', 'cover').css('background-position', 'center').text('');
+                }
+            }).catch(e => console.debug("avatar fetch failed for", did));
+    };
+    </script>
     {% block js %}{% endblock %}
 </html>

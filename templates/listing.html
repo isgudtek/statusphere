@@ -163,6 +163,17 @@ function renderListingDetail(l) {
                 <div style="font-size: 0.85rem; opacity: 0.6;">WGS84: ${l.latitude}, ${l.longitude}</div>
             </div>
         ` : ""}
+
+        ${!isOwner ? `
+        <div style="margin-top: 32px; display: flex; gap: 12px; align-items: center; padding: 20px; background: rgba(29, 155, 240, 0.05); border: 1px solid rgba(29, 155, 240, 0.1); border-radius: 12px;">
+            <a href="https://bsky.app/profile/${l.authorDid}" target="_blank" class="btn-submit-top" style="display: flex; align-items: center; gap: 8px; text-decoration: none; padding: 14px 28px; font-weight: 800; font-size: 1.1rem; box-shadow: 0 4px 15px rgba(255, 180, 0, 0.2);">
+                <span>💬</span> Message Author
+            </a>
+            <div style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.4;">
+                Click to open their BlueSky profile and start a chat.
+            </div>
+        </div>
+        ` : ''}
     `;
     $("#listing-detail").html(html);
 

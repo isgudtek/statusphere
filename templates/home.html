@@ -117,7 +117,10 @@
             
             <form id="listing-form" class="modal-form">
                 <div class="form-main">
-                    <div class="user-avatar-small"></div>
+                    <div class="user-avatar-small" id="modal-avatar"></div>
+                    {% if let Some(p) = profile %}
+                    <script>setTimeout(()=>loadAvatar("{{p.did}}", "#modal-avatar"), 100);</script>
+                    {% endif %}
                     <div class="input-area">
                         <input type="text" name="title" class="title-input" placeholder="What are you trading?" required />
                         <textarea name="description" class="desc-input" placeholder="Add color to your offer..."></textarea>

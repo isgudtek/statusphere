@@ -186,11 +186,10 @@ function fetchListings() {
             let iLat = parseFloat(item.latitude);
             let iLng = parseFloat(item.longitude);
             
-            // If user has a center point, filter by exact radius
-            if (centerPoint) {
-                let dist = getDistance(centerPoint.lat, centerPoint.lng, iLat, iLng);
-                if (dist > radius) return; // out of filter range
-            }
+            // Filter by radius from current MAP viewing center
+            let currentCenter = map.getCenter();
+            let dist = getDistance(currentCenter.lat, currentCenter.lng, iLat, iLng);
+            if (dist > radius) return; // restrict to slider radius
             
             validListingCount++;
             

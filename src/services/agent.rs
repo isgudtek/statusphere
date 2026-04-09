@@ -4,6 +4,7 @@ use crate::types::errors::AppError;
 use crate::types::lexicons::xyz::statusphere::status;
 use crate::types::lexicons::xyz::mercato::listing as mercato_listing;
 use crate::types::lexicons::{record::KnownRecord, xyz::statusphere::Status, xyz::mercato::Listing};
+use atrium_api::app::bsky::richtext::facet;
 use anyhow::Context as _;
 use atrium_api::app::bsky::actor::defs::ProfileViewDetailedData;
 use atrium_api::app::bsky::actor::get_profile;
@@ -187,12 +188,24 @@ impl Agent {
             "WANTED"
         };
 
+        let text = format!("New item {} on Mercato: {} 🏷️\n\nView details: {}", prefix, title, link);
+        let link_start = text.find(&link).unwrap_or(0);
+        let link_end = link_start + link.len();
+
         let bsky_post = atrium_api::app::bsky::feed::post::Record::from(atrium_api::app::bsky::feed::post::RecordData {
             created_at: Datetime::now(),
-            text: format!("New item {} on Mercato: {} 🏷️\n\nView details: {}", prefix, title, link),
+            text,
             embed: None,
             entities: None,
-            facets: None,
+            facets: Some(vec![facet::MainData {
+                features: vec![facet::MainFeaturesItem::Link(Box::new(facet::LinkData {
+                    uri: link.clone(),
+                }))],
+                index: facet::ByteSliceData {
+                    byte_start: link_start,
+                    byte_end: link_end,
+                }.into(),
+            }.into()]),
             labels: None,
             langs: None,
             reply: None,

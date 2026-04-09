@@ -1,4 +1,4 @@
-name = "mercato"
+name = "statusphere"
 main = "build/worker/shim.mjs"
 compatibility_date = "2025-04-08"
 

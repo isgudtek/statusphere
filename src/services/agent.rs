@@ -198,9 +198,9 @@ impl Agent {
             embed: None,
             entities: None,
             facets: Some(vec![facet::MainData {
-                features: vec![facet::MainFeaturesItem::Link(Box::new(facet::LinkData {
+                features: vec![atrium_api::types::Union::Refs(facet::MainFeaturesItem::Link(Box::new(facet::LinkData {
                     uri: link.clone(),
-                }))],
+                }.into())))],
                 index: facet::ByteSliceData {
                     byte_start: link_start,
                     byte_end: link_end,
